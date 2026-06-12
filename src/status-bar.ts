@@ -9,27 +9,52 @@ import {
   getRunHistory,
   getStatusBarAlignment,
   getStatusBarCommands,
+  getStatusBarDisplayMode,
   getStatusBarPriority,
   getStatusBarPriorityStep,
 } from './config';
 import type { ResolvedPackageManager, StatusBarCommand } from './types';
 
-export class StatusBarController {
+export class StatusBarController implements vscode.Disposable {
   private readonly items: vscode.StatusBarItem[] = [];
+  private readonly runStateSubscription: vscode.Disposable;
+  private refreshId = 0;
 
-  constructor(private readonly context: vscode.ExtensionContext) {
-    this.context.subscriptions.push(onDidChangeStatusBarCommandRunState(() => void this.refresh()));
+  constructor() {
+    this.runStateSubscription = onDidChangeStatusBarCommandRunState(() => void this.refresh());
   }
 
   async refresh() {
-    this.disposeItems();
+    const refreshId = ++this.refreshId;
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     const packageManager = workspaceFolder ? await resolvePackageManager(workspaceFolder.uri.fsPath) : undefined;
+
+    if (refreshId !== this.refreshId) {
+      return;
+    }
+
+    this.disposeItems();
+
     const alignment = getStatusBarAlignment();
     const commands = getStatusBarCommands();
     const priority = getStatusBarPriority();
     const priorityStep = getStatusBarPriorityStep();
+
+    if (getStatusBarDisplayMode() === 'compact') {
+      const item = vscode.window.createStatusBarItem(alignment, priority);
+
+      item.text = createCompactStatusBarText(commands);
+      item.tooltip = createCompactStatusBarTooltip(commands);
+      item.command = {
+        command: 'scriptDock.pickStatusBarCommand',
+        title: 'Run Script Dock Command',
+      };
+      item.show();
+
+      this.items.push(item);
+      return;
+    }
 
     commands.forEach((command, index) => {
       const item = vscode.window.createStatusBarItem(alignment, priority - index * priorityStep);
@@ -44,8 +69,12 @@ export class StatusBarController {
       item.show();
 
       this.items.push(item);
-      this.context.subscriptions.push(item);
     });
+  }
+
+  dispose() {
+    this.runStateSubscription.dispose();
+    this.disposeItems();
   }
 
   private disposeItems() {
@@ -53,6 +82,42 @@ export class StatusBarController {
       this.items.pop()?.dispose();
     }
   }
+}
+
+function createCompactStatusBarText(commands: StatusBarCommand[]): string {
+  if (commands.some((command) => getStatusBarCommandRunStatus(command).state === 'running')) {
+    return '$(sync~spin) Script Dock';
+  }
+
+  if (commands.some((command) => getStatusBarCommandRunStatus(command).state === 'failed')) {
+    return '$(error) Script Dock';
+  }
+
+  return '$(terminal) Script Dock';
+}
+
+function createCompactStatusBarTooltip(commands: StatusBarCommand[]): vscode.MarkdownString {
+  const tooltip = new vscode.MarkdownString('', true);
+
+  tooltip.isTrusted = false;
+  tooltip.appendMarkdown('**Script Dock**\n\n');
+
+  if (commands.length === 0) {
+    tooltip.appendMarkdown('No status bar commands configured.');
+    return tooltip;
+  }
+
+  tooltip.appendMarkdown('Click to run a status bar command.\n\n');
+  tooltip.appendMarkdown(commands.map((command) => `- ${describeCompactCommand(command)}`).join('\n'));
+
+  return tooltip;
+}
+
+function describeCompactCommand(command: StatusBarCommand): string {
+  const runStatus = getStatusBarCommandRunStatus(command);
+  const status = runStatus.state === 'idle' ? '' : ` - ${describeRunStatus(runStatus)}`;
+
+  return `\`${command.label}\` runs \`${getStatusBarCommandScripts(command).join(' + ')}\`${status}`;
 }
 
 function createStatusBarText(command: StatusBarCommand): string {
@@ -86,19 +151,19 @@ function createStatusBarTooltip(
   tooltip.appendMarkdown(`**Script Dock: ${command.label}**\n\n`);
 
   tooltip.appendMarkdown(`Runs: \`${scriptNames.join(' + ')}\`\n\n`);
-  tooltip.appendMarkdown(`Package: \`${formatPackagePath(command.packagePath)}\`\n\n`);
   tooltip.appendMarkdown(
     `Mode: ${describeExecutionMode(executionMode, scriptNames, command.autoClose, command.packagePath)}\n\n`,
   );
-
-  if (runStatus.state !== 'idle') {
-    tooltip.appendMarkdown(`Status: ${describeRunStatus(runStatus)}\n\n`);
-  }
 
   if (lastRun) {
     tooltip.appendMarkdown(`Last run: ${describeLastRun(lastRun)}\n\n`);
   }
 
+  if (runStatus.state !== 'idle') {
+    tooltip.appendMarkdown(`Status: ${describeRunStatus(runStatus)}\n\n`);
+  }
+
+  tooltip.appendMarkdown(`Package: \`${formatPackagePath(command.packagePath)}\`\n\n`);
   tooltip.appendMarkdown(`Command: \`${terminalCommand}\``);
 
   return tooltip;

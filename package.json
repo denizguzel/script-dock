@@ -36,8 +36,9 @@
         "icon": "$(terminal)"
       },
       {
-        "command": "scriptDock.runStatusBarCommand",
-        "title": "Run Status Bar Command"
+        "command": "scriptDock.pickStatusBarCommand",
+        "title": "Run Status Bar Command",
+        "icon": "$(list-selection)"
       },
       {
         "command": "scriptDock.refreshScripts",
@@ -53,6 +54,11 @@
         "command": "scriptDock.createScriptChain",
         "title": "Create Script Chain",
         "icon": "$(combine)"
+      },
+      {
+        "command": "scriptDock.addSuggestedChains",
+        "title": "Add Suggested Chains",
+        "icon": "$(lightbulb)"
       },
       {
         "command": "scriptDock.showRunHistory",
@@ -110,6 +116,16 @@
         "icon": "$(arrow-right)"
       },
       {
+        "command": "scriptDock.useCompactStatusBar",
+        "title": "Use Compact Status Bar",
+        "icon": "$(collapse-all)"
+      },
+      {
+        "command": "scriptDock.useExpandedStatusBar",
+        "title": "Use Expanded Status Bar",
+        "icon": "$(expand-all)"
+      },
+      {
         "command": "scriptDock.enableAutoClose",
         "title": "Close Terminal on Success",
         "icon": "$(debug-disconnect)"
@@ -153,42 +169,57 @@
         {
           "command": "scriptDock.refreshScripts",
           "when": "view == scriptDock.scripts",
-          "group": "navigation"
+          "group": "navigation@2"
         },
         {
           "command": "scriptDock.searchScripts",
           "when": "view == scriptDock.scripts",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
           "command": "scriptDock.createScriptChain",
           "when": "view == scriptDock.scripts",
-          "group": "navigation"
+          "group": "actions@2"
+        },
+        {
+          "command": "scriptDock.addSuggestedChains",
+          "when": "view == scriptDock.scripts",
+          "group": "navigation@3"
         },
         {
           "command": "scriptDock.showRunHistory",
           "when": "view == scriptDock.scripts",
-          "group": "navigation"
+          "group": "actions@3"
         },
         {
           "command": "scriptDock.showHiddenScript",
           "when": "view == scriptDock.scripts",
-          "group": "navigation"
+          "group": "actions@4"
         },
         {
           "command": "scriptDock.resetWorkspacePreferences",
           "when": "view == scriptDock.scripts",
-          "group": "navigation"
+          "group": "manage@9"
         },
         {
           "command": "scriptDock.moveStatusBarCommandsLeft",
           "when": "view == scriptDock.scripts && scriptDock.statusBarAlignment == right",
-          "group": "navigation"
+          "group": "manage@1"
         },
         {
           "command": "scriptDock.moveStatusBarCommandsRight",
           "when": "view == scriptDock.scripts && scriptDock.statusBarAlignment == left",
-          "group": "navigation"
+          "group": "manage@1"
+        },
+        {
+          "command": "scriptDock.useCompactStatusBar",
+          "when": "view == scriptDock.scripts && scriptDock.statusBarDisplayMode != compact",
+          "group": "navigation@4"
+        },
+        {
+          "command": "scriptDock.useExpandedStatusBar",
+          "when": "view == scriptDock.scripts && scriptDock.statusBarDisplayMode == compact",
+          "group": "navigation@4"
         }
       ],
       "view/item/context": [
@@ -333,6 +364,15 @@
           "type": "number",
           "default": 10,
           "description": "Priority gap between adjacent command buttons. Increase this when other extensions appear between command buttons."
+        },
+        "scriptDock.statusBarDisplayMode": {
+          "type": "string",
+          "enum": [
+            "compact",
+            "expanded"
+          ],
+          "default": "expanded",
+          "description": "Whether status bar commands are shown as individual buttons or one compact Script Dock picker."
         },
         "scriptDock.hideScripts": {
           "type": "array",

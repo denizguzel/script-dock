@@ -42,7 +42,10 @@ Use this skill to keep changes to `script-dock` consistent with the extension's 
 - Treat auto-close as a terminal lifecycle preference, not as execution mode.
 - Background failures should be discoverable: keep the error icon visible, show output, and offer rerun.
 - Keep chain creation available from the side panel, not only manual JSON.
+- Keep suggested chain creation generic and based only on common package script names found in the current workspace.
 - Keep status bar command ordering manageable from the side panel; prefer drag and drop over separate reorder commands.
+- Offer compact status bar mode for users who do not want one status bar item per command.
+- Surface command health in the side panel with concise state text and familiar codicons.
 - Keep background run history concise and stored in workspaceState.
 
 ## Manifest Rules

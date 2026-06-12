@@ -5,10 +5,13 @@ VS Code extension for running workspace package scripts from a compact side pane
 ## Features
 
 - One-click status bar commands for package scripts and script chains.
+- Compact status bar mode shows one Script Dock picker instead of one item per command.
 - Script chain builder from the side panel, without writing JSON by hand.
+- Suggested chains can be detected from common scripts such as `format`, `lint`, `knip`, `test`, and `build`.
 - Background status bar runs show spinner, success, and failure states without focusing a terminal.
 - Background runs can be stopped while they are running.
 - Recent background run history with success, failure, exit code, duration, and output tail.
+- Status bar commands show health badges in the side panel.
 - Side panel grouped into favorite scripts and the rest of the visible scripts.
 - Multi-package workspaces are grouped by package root.
 - Search scripts across the workspace from the panel title.
@@ -43,6 +46,7 @@ Manual settings are still supported when you want checked-in team defaults:
     { "label": "dev", "script": "dev", "packagePath": ".", "icon": "terminal", "executionMode": "terminal" }
   ],
   "scriptDock.statusBarAlignment": "left",
+  "scriptDock.statusBarDisplayMode": "expanded",
   "scriptDock.statusBarPriority": 10000,
   "scriptDock.statusBarPriorityStep": 10,
   "scriptDock.hideScripts": [],

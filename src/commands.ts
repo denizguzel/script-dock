@@ -11,13 +11,15 @@ import {
   getRunHistory,
   getStatusBarCommands,
   resetWorkspacePreferences,
+  updateCommandActivity,
   updateScriptListPreference,
   updateStatusBarAlignment,
   updateStatusBarCommands,
+  updateStatusBarDisplayMode,
 } from './config';
 import { resolvePackageManager } from './package-manager';
 import { getAllScripts, getFavoriteScripts, getPackageRoots, getVisibleScripts } from './scripts';
-import { getStatusBarCommandScripts, getStatusBarExecutionMode } from './status-bar-command';
+import { createStatusBarCommandKey, getStatusBarCommandScripts, getStatusBarExecutionMode } from './status-bar-command';
 import { createTerminalCommand, runTerminalCommand } from './terminal';
 import { ScriptItem } from './tree';
 import type { PackageRoot, ScriptEntry, StatusBarCommand, StatusBarCommandExecutionMode } from './types';
@@ -105,8 +107,18 @@ export async function runStatusBarCommand(command: StatusBarCommand, options: { 
   }
 
   const packageManager = await resolvePackageManager(packageRoot.fsPath);
+  const executionMode = getStatusBarExecutionMode(command);
 
-  if (getStatusBarExecutionMode(command) === 'background') {
+  await updateCommandActivity({
+    commandKey: createStatusBarCommandKey(command),
+    label: command.label,
+    mode: executionMode,
+    packagePath: packageRoot.packagePath,
+    scriptNames,
+    startedAt: Date.now(),
+  });
+
+  if (executionMode === 'background') {
     const result = await runStatusBarCommandInBackground({
       command,
       cwd: packageRoot.fsPath,
@@ -161,6 +173,29 @@ export async function searchScripts() {
 
   if (scriptItem) {
     await runScript(scriptItem);
+  }
+}
+
+export async function pickAndRunStatusBarCommand() {
+  const commands = getStatusBarCommands();
+
+  if (commands.length === 0) {
+    vscode.window.showInformationMessage('Add status bar commands before using compact mode.');
+    return;
+  }
+
+  const selected = await vscode.window.showQuickPick(
+    commands.map((command) => ({
+      description: getStatusBarCommandScripts(command).join(' + '),
+      detail: formatPackagePath(getCommandPackagePath(command)),
+      label: command.label,
+      command,
+    })),
+    { placeHolder: 'Run a Script Dock status bar command' },
+  );
+
+  if (selected) {
+    await runStatusBarCommand(selected.command);
   }
 }
 
@@ -225,6 +260,50 @@ export async function createScriptChain() {
   ]);
 }
 
+export async function addSuggestedChains() {
+  const workspaceFolder = getWorkspaceFolder();
+
+  if (!workspaceFolder) {
+    return;
+  }
+
+  const scripts = await getVisibleScripts(workspaceFolder);
+  const suggestions = createChainSuggestions(scripts);
+
+  if (suggestions.length === 0) {
+    vscode.window.showInformationMessage('No useful script chains found for this workspace.');
+    return;
+  }
+
+  const selected = await vscode.window.showQuickPick(
+    suggestions.map((suggestion) => ({
+      description: formatPackagePath(suggestion.packagePath),
+      detail: suggestion.scripts.join(' + '),
+      label: suggestion.label,
+      suggestion,
+    })),
+    {
+      canPickMany: true,
+      placeHolder: 'Add suggested status bar chains',
+    },
+  );
+
+  if (!selected || selected.length === 0) {
+    return;
+  }
+
+  await updateStatusBarCommands([
+    ...getStatusBarCommands(),
+    ...selected.map((item) => ({
+      executionMode: 'background' as const,
+      icon: 'check-all',
+      label: item.suggestion.label,
+      packagePath: item.suggestion.packagePath,
+      scripts: item.suggestion.scripts,
+    })),
+  ]);
+}
+
 export async function showRunHistory() {
   const history = getRunHistory();
 
@@ -274,6 +353,16 @@ export async function moveStatusBarCommandsLeft() {
 export async function moveStatusBarCommandsRight() {
   await updateStatusBarAlignment('right');
   await vscode.commands.executeCommand('setContext', 'scriptDock.statusBarAlignment', 'right');
+}
+
+export async function useCompactStatusBar() {
+  await updateStatusBarDisplayMode('compact');
+  await vscode.commands.executeCommand('setContext', 'scriptDock.statusBarDisplayMode', 'compact');
+}
+
+export async function useExpandedStatusBar() {
+  await updateStatusBarDisplayMode('expanded');
+  await vscode.commands.executeCommand('setContext', 'scriptDock.statusBarDisplayMode', 'expanded');
 }
 
 export async function addStatusBarCommand(item?: ScriptItem) {
@@ -516,6 +605,60 @@ function createScriptQuickPickItem(script: ScriptEntry) {
   };
 }
 
+function createChainSuggestions(
+  scripts: ScriptEntry[],
+): Array<{ label: string; packagePath: string; scripts: string[] }> {
+  const existingKeys = new Set(
+    getStatusBarCommands().map((command) =>
+      createChainKey(getCommandPackagePath(command), getStatusBarCommandScripts(command)),
+    ),
+  );
+  const scriptsByPackage = new Map<string, Set<string>>();
+  const suggestions: Array<{ label: string; packagePath: string; scripts: string[] }> = [];
+  const candidates = [
+    { label: 'verify', scripts: ['format', 'knip', 'build'] },
+    { label: 'quality', scripts: ['format', 'lint', 'build'] },
+    { label: 'ci', scripts: ['lint', 'test', 'build'] },
+    { label: 'check', scripts: ['typecheck', 'lint', 'test'] },
+    { label: 'test + build', scripts: ['test', 'build'] },
+    { label: 'format + lint', scripts: ['format', 'lint'] },
+    { label: 'lint + build', scripts: ['lint', 'build'] },
+  ];
+
+  for (const script of scripts) {
+    const packageScripts = scriptsByPackage.get(script.packageRoot.packagePath) ?? new Set<string>();
+    packageScripts.add(script.name);
+    scriptsByPackage.set(script.packageRoot.packagePath, packageScripts);
+  }
+
+  for (const [packagePath, packageScripts] of scriptsByPackage) {
+    for (const candidate of candidates) {
+      if (!candidate.scripts.every((scriptName) => packageScripts.has(scriptName))) {
+        continue;
+      }
+
+      const key = createChainKey(packagePath, candidate.scripts);
+
+      if (existingKeys.has(key)) {
+        continue;
+      }
+
+      suggestions.push({
+        label: candidate.label,
+        packagePath,
+        scripts: candidate.scripts,
+      });
+      existingKeys.add(key);
+    }
+  }
+
+  return suggestions;
+}
+
+function createChainKey(packagePath: string, scriptNames: string[]): string {
+  return `${packagePath}:${scriptNames.join('&&')}`;
+}
+
 function createFailureMessage(
   label: string,
   exitCode: number | null | undefined,
@@ -529,6 +672,10 @@ function createFailureMessage(
 
 function getCommandPackagePath(command: StatusBarCommand): string {
   return command.packagePath ?? '.';
+}
+
+function formatPackagePath(packagePath: string): string {
+  return packagePath === '.' ? 'Workspace root' : packagePath;
 }
 
 function getWorkspaceFolder(): vscode.WorkspaceFolder | undefined {

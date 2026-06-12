@@ -1,5 +1,14 @@
 import * as vscode from 'vscode';
-import { getConfiguredScripts, getStatusBarCommands, updateStatusBarCommands } from './config';
+import { getStatusBarCommandRunStatus } from './command-runner';
+import {
+  getCommandActivity,
+  getCollapsedTreeGroups,
+  getConfiguredScripts,
+  getRunHistory,
+  getStatusBarCommands,
+  updateCollapsedTreeGroups,
+  updateStatusBarCommands,
+} from './config';
 import { getFavoriteScripts, getNonFavoriteScripts, getVisibleScripts } from './scripts';
 import { createStatusBarCommandKey, getStatusBarCommandScripts, getStatusBarExecutionMode } from './status-bar-command';
 import type { PackageRoot, ScriptEntry, StatusBarCommand, StatusBarCommandExecutionMode } from './types';
@@ -17,9 +26,10 @@ class ScriptGroupItem extends vscode.TreeItem {
     label: string,
     public readonly packageRoot?: PackageRoot,
   ) {
-    super(label, vscode.TreeItemCollapsibleState.Expanded);
+    super(label, getGroupCollapsibleState(groupId));
 
     this.contextValue = 'scriptGroup';
+    this.id = createTreeItemId('group', groupId);
     this.iconPath = new vscode.ThemeIcon(getGroupIcon(groupId));
   }
 }
@@ -38,6 +48,7 @@ export class ScriptItem extends vscode.TreeItem {
 
     this.contextValue = createScriptContextValue(options);
     this.description = script.command;
+    this.id = createTreeItemId('script', script.id);
     this.tooltip = `${script.name}\n${script.command}\n${script.packageRoot.label}`;
     this.iconPath = new vscode.ThemeIcon('play-circle');
     this.command = {
@@ -72,10 +83,12 @@ class StatusBarCommandItem extends vscode.TreeItem {
     super(statusBarCommand.label, vscode.TreeItemCollapsibleState.None);
 
     const scriptNames = getStatusBarCommandScripts(statusBarCommand);
+    const health = getStatusBarCommandHealth(statusBarCommand);
 
     this.contextValue = 'statusBarCommand';
-    this.description = scriptNames.join(' + ');
-    this.tooltip = createStatusBarCommandTooltip(statusBarCommand, scriptNames);
+    this.description = `${health.shortLabel} - ${scriptNames.join(' + ')}`;
+    this.id = createTreeItemId('status-bar-command', createStatusBarCommandKey(statusBarCommand));
+    this.tooltip = createStatusBarCommandTooltip(statusBarCommand, scriptNames, health.detail);
     this.iconPath = new vscode.ThemeIcon(getStatusBarCommandIcon(statusBarCommand));
     this.command = {
       command: 'scriptDock.runStatusBarCommand',
@@ -96,6 +109,22 @@ export class ScriptsProvider implements vscode.TreeDataProvider<ScriptTreeItem> 
 
   getTreeItem(element: ScriptTreeItem): vscode.TreeItem {
     return element;
+  }
+
+  async collapseGroup(element: ScriptTreeItem) {
+    if (!(element instanceof ScriptGroupItem)) {
+      return;
+    }
+
+    await updateCollapsedTreeGroups([...new Set([...getCollapsedTreeGroups(), element.groupId])]);
+  }
+
+  async expandGroup(element: ScriptTreeItem) {
+    if (!(element instanceof ScriptGroupItem)) {
+      return;
+    }
+
+    await updateCollapsedTreeGroups(getCollapsedTreeGroups().filter((groupId) => groupId !== element.groupId));
   }
 
   async getChildren(element?: ScriptTreeItem): Promise<ScriptTreeItem[]> {
@@ -127,7 +156,7 @@ export class ScriptsProvider implements vscode.TreeDataProvider<ScriptTreeItem> 
     const groups: ScriptGroupItem[] = [];
 
     if (getStatusBarCommands().length > 0) {
-      groups.push(new ScriptGroupItem(statusBarGroupId, 'Status Bar'));
+      groups.push(new ScriptGroupItem(statusBarGroupId, 'Pinned Commands'));
     }
 
     if (getFavoriteScripts(scripts).length > 0) {
@@ -227,12 +256,14 @@ function getGroupIcon(groupId: string): string {
   return groupId === favoriteGroupId ? 'star-full' : 'package';
 }
 
-function getStatusBarCommandIcon(command: StatusBarCommand): string {
-  if (command.icon) {
-    return command.icon;
-  }
+function getGroupCollapsibleState(groupId: string): vscode.TreeItemCollapsibleState {
+  return getCollapsedTreeGroups().includes(groupId)
+    ? vscode.TreeItemCollapsibleState.Collapsed
+    : vscode.TreeItemCollapsibleState.Expanded;
+}
 
-  return getStatusBarExecutionMode(command) === 'background' ? 'server-process' : 'terminal';
+function createTreeItemId(kind: string, value: string): string {
+  return `${kind}:${encodeURIComponent(value)}`;
 }
 
 function formatPackagePath(packagePath?: string): string {
@@ -243,13 +274,63 @@ function formatPackagePath(packagePath?: string): string {
   return packagePath;
 }
 
-function createStatusBarCommandTooltip(command: StatusBarCommand, scriptNames: string[]): string {
+function getStatusBarCommandIcon(command: StatusBarCommand): string {
+  return command.icon ?? (getStatusBarExecutionMode(command) === 'background' ? 'server-process' : 'terminal');
+}
+
+function createStatusBarCommandTooltip(command: StatusBarCommand, scriptNames: string[], health: string): string {
   return [
     `Status bar command: ${command.label}`,
     `Runs: ${scriptNames.join(' + ')}`,
+    `Mode: ${describeStatusBarCommandMode(command)}`,
+    health,
     `Package: ${formatPackagePath(command.packagePath)}`,
-    `Mode: ${getStatusBarExecutionMode(command)}`,
   ].join('\n');
+}
+
+function describeStatusBarCommandMode(command: StatusBarCommand): string {
+  return getStatusBarExecutionMode(command) === 'background' ? 'Background output' : 'Terminal';
+}
+
+function getStatusBarCommandHealth(command: StatusBarCommand): { detail: string; shortLabel: string } {
+  const runStatus = getStatusBarCommandRunStatus(command);
+
+  if (runStatus.state === 'running') {
+    return { detail: 'Currently running', shortLabel: 'running' };
+  }
+
+  if (runStatus.state === 'failed') {
+    return { detail: 'Current background run failed', shortLabel: 'failed' };
+  }
+
+  if (runStatus.state === 'success') {
+    return { detail: 'Current background run finished successfully', shortLabel: 'ok now' };
+  }
+
+  const lastRun = getRunHistory().find((entry) => entry.commandKey === createStatusBarCommandKey(command));
+
+  if (lastRun?.success) {
+    return { detail: 'Last background run: successful', shortLabel: 'last ok' };
+  }
+
+  if (lastRun) {
+    return { detail: 'Last background run: failed', shortLabel: 'last failed' };
+  }
+
+  const activity = getCommandActivity().find((entry) => entry.commandKey === createStatusBarCommandKey(command));
+
+  if (activity?.mode === 'terminal') {
+    return { detail: 'Opened in terminal; result is not tracked', shortLabel: 'terminal' };
+  }
+
+  if (activity) {
+    return { detail: 'Started in background', shortLabel: 'started' };
+  }
+
+  return {
+    detail: 'No background run recorded yet',
+    shortLabel: 'not run',
+  };
 }
 
 function isStatusBarDropTarget(target: ScriptTreeItem | undefined): boolean {
