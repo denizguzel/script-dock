@@ -9,8 +9,19 @@ import {
   updateCollapsedTreeGroups,
   updateStatusBarCommands,
 } from './config';
-import { getFavoriteScripts, getNonFavoriteScripts, getVisibleScripts } from './scripts';
-import { createStatusBarCommandKey, getStatusBarCommandScripts, getStatusBarExecutionMode } from './status-bar-command';
+import {
+  getFavoriteScripts,
+  getNonFavoriteScripts,
+  getPackageRoots,
+  getScriptsForPackageRoots,
+  getVisibleScriptsFromScripts,
+} from './scripts';
+import {
+  createStatusBarCommandKey,
+  getStatusBarCommandScripts,
+  getStatusBarExecutionMode,
+  getStatusBarFailurePolicy,
+} from './status-bar-command';
 import type { PackageRoot, ScriptEntry, StatusBarCommand, StatusBarCommandExecutionMode } from './types';
 
 const statusBarGroupId = 'statusBar';
@@ -79,20 +90,27 @@ class StatusBarCommandItem extends vscode.TreeItem {
   constructor(
     public readonly statusBarCommand: StatusBarCommand,
     public readonly index: number,
+    allScripts: ScriptEntry[],
   ) {
     super(statusBarCommand.label, vscode.TreeItemCollapsibleState.None);
 
     const scriptNames = getStatusBarCommandScripts(statusBarCommand);
     const health = getStatusBarCommandHealth(statusBarCommand);
+    const missingScripts = getMissingStatusBarScripts(statusBarCommand, allScripts);
 
-    this.contextValue = 'statusBarCommand';
-    this.description = `${health.shortLabel} - ${scriptNames.join(' + ')}`;
+    this.contextValue = createStatusBarCommandContextValue(statusBarCommand, missingScripts);
+    this.description =
+      missingScripts.length > 0
+        ? `missing: ${missingScripts.join(', ')}`
+        : `${health.shortLabel} - ${scriptNames.join(' + ')}`;
     this.id = createTreeItemId('status-bar-command', createStatusBarCommandKey(statusBarCommand));
-    this.tooltip = createStatusBarCommandTooltip(statusBarCommand, scriptNames, health.detail);
-    this.iconPath = new vscode.ThemeIcon(getStatusBarCommandIcon(statusBarCommand));
+    this.tooltip = createStatusBarCommandTooltip(statusBarCommand, scriptNames, health.detail, missingScripts);
+    this.iconPath = new vscode.ThemeIcon(
+      missingScripts.length > 0 ? 'warning' : getStatusBarCommandIcon(statusBarCommand),
+    );
     this.command = {
       command: 'scriptDock.runStatusBarCommand',
-      title: 'Run Status Bar Command',
+      title: 'Run Status Bar Script',
       arguments: [statusBarCommand],
     };
   }
@@ -134,11 +152,13 @@ export class ScriptsProvider implements vscode.TreeDataProvider<ScriptTreeItem> 
       return [];
     }
 
-    const scripts = await getVisibleScripts(workspaceFolder);
+    const packageRoots = await getPackageRoots(workspaceFolder);
+    const allScripts = await getScriptsForPackageRoots(packageRoots);
+    const scripts = getVisibleScriptsFromScripts(allScripts);
 
     if (element instanceof ScriptGroupItem) {
       if (element.groupId === statusBarGroupId) {
-        return getStatusBarCommands().map((command, index) => new StatusBarCommandItem(command, index));
+        return getStatusBarCommands().map((command, index) => new StatusBarCommandItem(command, index, allScripts));
       }
 
       if (element.packageRoot) {
@@ -153,10 +173,10 @@ export class ScriptsProvider implements vscode.TreeDataProvider<ScriptTreeItem> 
       return groupScripts.map((script) => createScriptItem(script));
     }
 
-    const groups: ScriptGroupItem[] = [];
+    const groups: ScriptTreeItem[] = [];
 
     if (getStatusBarCommands().length > 0) {
-      groups.push(new ScriptGroupItem(statusBarGroupId, 'Pinned Commands'));
+      groups.push(new ScriptGroupItem(statusBarGroupId, 'Pinned Scripts'));
     }
 
     if (getFavoriteScripts(scripts).length > 0) {
@@ -278,18 +298,36 @@ function getStatusBarCommandIcon(command: StatusBarCommand): string {
   return command.icon ?? (getStatusBarExecutionMode(command) === 'background' ? 'server-process' : 'terminal');
 }
 
-function createStatusBarCommandTooltip(command: StatusBarCommand, scriptNames: string[], health: string): string {
-  return [
-    `Status bar command: ${command.label}`,
+function createStatusBarCommandTooltip(
+  command: StatusBarCommand,
+  scriptNames: string[],
+  health: string,
+  missingScripts: string[],
+): string {
+  const lines = [
+    `Status bar script: ${command.label}`,
     `Runs: ${scriptNames.join(' + ')}`,
     `Mode: ${describeStatusBarCommandMode(command)}`,
     health,
     `Package: ${formatPackagePath(command.packagePath)}`,
-  ].join('\n');
+  ];
+
+  if (missingScripts.length > 0) {
+    lines.splice(3, 0, `Missing: ${missingScripts.join(', ')}`);
+  }
+
+  return lines.join('\n');
 }
 
 function describeStatusBarCommandMode(command: StatusBarCommand): string {
   return getStatusBarExecutionMode(command) === 'background' ? 'Background output' : 'Terminal';
+}
+
+function createStatusBarCommandContextValue(command: StatusBarCommand, missingScripts: string[]): string {
+  const failurePolicy = getStatusBarFailurePolicy(command) === 'continue' ? 'continueOnFailure' : 'stopOnFailure';
+  const missingState = missingScripts.length > 0 ? 'missingScript' : 'validScript';
+
+  return `statusBarCommand ${failurePolicy} ${missingState}`;
 }
 
 function getStatusBarCommandHealth(command: StatusBarCommand): { detail: string; shortLabel: string } {
@@ -399,6 +437,15 @@ function getSingleScriptStatusBarCommand(script: ScriptEntry) {
       (command.packagePath ?? '.') === script.packageRoot.packagePath
     );
   });
+}
+
+function getMissingStatusBarScripts(command: StatusBarCommand, allScripts: ScriptEntry[]): string[] {
+  const packagePath = command.packagePath ?? '.';
+
+  return getStatusBarCommandScripts(command).filter(
+    (scriptName) =>
+      !allScripts.some((script) => script.name === scriptName && script.packageRoot.packagePath === packagePath),
+  );
 }
 
 function createScriptContextValue(options: {

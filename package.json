@@ -37,7 +37,7 @@
       },
       {
         "command": "scriptDock.pickStatusBarCommand",
-        "title": "Run Status Bar Command",
+        "title": "Run Status Bar Script",
         "icon": "$(list-selection)"
       },
       {
@@ -106,13 +106,23 @@
         "icon": "$(terminal-cmd)"
       },
       {
+        "command": "scriptDock.stopChainOnFailure",
+        "title": "Stop Chain on Failure",
+        "icon": "$(debug-step-out)"
+      },
+      {
+        "command": "scriptDock.continueChainOnFailure",
+        "title": "Continue Chain after Failures",
+        "icon": "$(debug-step-over)"
+      },
+      {
         "command": "scriptDock.moveStatusBarCommandsLeft",
-        "title": "Move Status Bar Commands Left",
+        "title": "Move Status Bar Scripts Left",
         "icon": "$(arrow-left)"
       },
       {
         "command": "scriptDock.moveStatusBarCommandsRight",
-        "title": "Move Status Bar Commands Right",
+        "title": "Move Status Bar Scripts Right",
         "icon": "$(arrow-right)"
       },
       {
@@ -151,7 +161,7 @@
         {
           "id": "scriptDock",
           "title": "Script Dock",
-          "icon": "resources/activity-icon.svg"
+          "icon": "resources/script-dock-icon.svg"
         }
       ]
     },
@@ -164,6 +174,23 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "scriptDock.scripts",
+        "contents": "No package.json found in this workspace.\n[Refresh Scripts](command:scriptDock.refreshScripts)",
+        "when": "scriptDock.hasPackageJson == false"
+      },
+      {
+        "view": "scriptDock.scripts",
+        "contents": "No package scripts found. Add a scripts section to package.json, then refresh.\n[Refresh Scripts](command:scriptDock.refreshScripts)",
+        "when": "scriptDock.hasPackageJson == true && scriptDock.hasPackageScripts == false"
+      },
+      {
+        "view": "scriptDock.scripts",
+        "contents": "All package scripts are hidden.\n[Show Hidden Script](command:scriptDock.showHiddenScript)",
+        "when": "scriptDock.hasPackageScripts == true && scriptDock.hasVisibleScripts == false"
+      }
+    ],
     "menus": {
       "view/title": [
         {
@@ -259,14 +286,24 @@
           "group": "inline@4"
         },
         {
+          "command": "scriptDock.continueChainOnFailure",
+          "when": "view == scriptDock.scripts && viewItem =~ /\\bstatusBarCommand\\b/ && viewItem =~ /\\bstopOnFailure\\b/",
+          "group": "inline@5"
+        },
+        {
+          "command": "scriptDock.stopChainOnFailure",
+          "when": "view == scriptDock.scripts && viewItem =~ /\\bstatusBarCommand\\b/ && viewItem =~ /\\bcontinueOnFailure\\b/",
+          "group": "inline@5"
+        },
+        {
           "command": "scriptDock.enableAutoClose",
           "when": "view == scriptDock.scripts && viewItem =~ /\\bnotAutoClose\\b/",
-          "group": "inline@5"
+          "group": "inline@6"
         },
         {
           "command": "scriptDock.disableAutoClose",
           "when": "view == scriptDock.scripts && viewItem =~ /\\bautoClose\\b/",
-          "group": "inline@5"
+          "group": "inline@6"
         },
         {
           "command": "scriptDock.hideScript",
@@ -296,7 +333,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Optional script names pinned at the top of the scripts panel. Commands added from the UI are stored in VS Code workspace storage."
+          "description": "Optional script names pinned at the top of the scripts panel. Scripts added from the UI are stored in VS Code workspace storage."
         },
         "scriptDock.statusBarCommands": {
           "type": "array",
@@ -323,7 +360,7 @@
               },
               "packagePath": {
                 "type": "string",
-                "description": "Workspace-relative package root for this command. Root package uses '.'."
+                "description": "Workspace-relative package root for this script. Root package uses '.'."
               },
               "icon": {
                 "type": "string",
@@ -339,12 +376,20 @@
                   "background",
                   "terminal"
                 ],
-                "description": "How this status bar command runs. Background commands show spinner/check/error states and write to the Script Dock output. Terminal commands open a VS Code terminal. When omitted, commands use terminal mode."
+                "description": "How this status bar script runs. Background scripts show spinner/check/error states and write to the Script Dock output. Terminal scripts open a VS Code terminal. When omitted, scripts use terminal mode."
+              },
+              "failurePolicy": {
+                "type": "string",
+                "enum": [
+                  "stop",
+                  "continue"
+                ],
+                "description": "How script chains handle failed scripts. Stop halts on the first failure. Continue runs the rest of the chain and reports failure at the end."
               }
             }
           },
           "default": [],
-          "description": "Optional one-click commands shown directly in the VS Code status bar. Commands added from the UI are stored in VS Code workspace storage."
+          "description": "Optional one-click scripts shown directly in the VS Code status bar. Scripts added from the UI are stored in VS Code workspace storage."
         },
         "scriptDock.statusBarAlignment": {
           "type": "string",
@@ -353,17 +398,17 @@
             "right"
           ],
           "default": "left",
-          "description": "Side of the VS Code status bar where command buttons are shown."
+          "description": "Side of the VS Code status bar where script buttons are shown."
         },
         "scriptDock.statusBarPriority": {
           "type": "number",
           "default": 10000,
-          "description": "Base priority for command buttons in the VS Code status bar. Higher values appear earlier within the selected side."
+          "description": "Base priority for script buttons in the VS Code status bar. Higher values appear earlier within the selected side."
         },
         "scriptDock.statusBarPriorityStep": {
           "type": "number",
           "default": 10,
-          "description": "Priority gap between adjacent command buttons. Increase this when other extensions appear between command buttons."
+          "description": "Priority gap between adjacent script buttons. Increase this when other extensions appear between script buttons."
         },
         "scriptDock.statusBarDisplayMode": {
           "type": "string",
@@ -372,7 +417,17 @@
             "expanded"
           ],
           "default": "expanded",
-          "description": "Whether status bar commands are shown as individual buttons or one compact Script Dock picker."
+          "description": "Whether status bar scripts are shown as individual buttons or one compact Script Dock picker."
+        },
+        "scriptDock.statusBarOverflowLimit": {
+          "type": "number",
+          "default": 6,
+          "description": "Maximum expanded status bar script buttons before the rest move into a single overflow picker. Use 0 to disable overflow."
+        },
+        "scriptDock.includeNestedGitRepositories": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether package.json files inside nested Git repositories should be scanned. Keep this disabled when opening a parent folder that contains many separate repositories."
         },
         "scriptDock.hideScripts": {
           "type": "array",

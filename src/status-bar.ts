@@ -3,17 +3,23 @@ import { getStatusBarCommandRunStatus, onDidChangeStatusBarCommandRunState } fro
 import { getConfiguredPackageManagerLabel, resolvePackageManager } from './package-manager';
 import { createScriptId } from './scripts';
 import { createRunCommand } from './terminal';
-import { createStatusBarCommandKey, getStatusBarCommandScripts, getStatusBarExecutionMode } from './status-bar-command';
+import {
+  createStatusBarCommandKey,
+  getStatusBarCommandScripts,
+  getStatusBarExecutionMode,
+  getStatusBarFailurePolicy,
+} from './status-bar-command';
 import {
   getConfiguredScripts,
   getRunHistory,
   getStatusBarAlignment,
   getStatusBarCommands,
   getStatusBarDisplayMode,
+  getStatusBarOverflowLimit,
   getStatusBarPriority,
   getStatusBarPriorityStep,
 } from './config';
-import type { ResolvedPackageManager, StatusBarCommand } from './types';
+import type { ResolvedPackageManager, StatusBarCommand, StatusBarCommandFailurePolicy } from './types';
 
 export class StatusBarController implements vscode.Disposable {
   private readonly items: vscode.StatusBarItem[] = [];
@@ -48,7 +54,7 @@ export class StatusBarController implements vscode.Disposable {
       item.tooltip = createCompactStatusBarTooltip(commands);
       item.command = {
         command: 'scriptDock.pickStatusBarCommand',
-        title: 'Run Script Dock Command',
+        title: 'Run Script Dock Script',
       };
       item.show();
 
@@ -56,20 +62,41 @@ export class StatusBarController implements vscode.Disposable {
       return;
     }
 
-    commands.forEach((command, index) => {
+    const overflowLimit = getStatusBarOverflowLimit();
+    const visibleCommands =
+      overflowLimit > 0 && commands.length > overflowLimit ? commands.slice(0, overflowLimit) : commands;
+    const overflowCommands = overflowLimit > 0 && commands.length > overflowLimit ? commands.slice(overflowLimit) : [];
+
+    visibleCommands.forEach((command, index) => {
       const item = vscode.window.createStatusBarItem(alignment, priority - index * priorityStep);
 
       item.text = createStatusBarText(command);
       item.tooltip = createStatusBarTooltip(command, packageManager);
       item.command = {
         command: 'scriptDock.runStatusBarCommand',
-        title: 'Run Status Bar Command',
+        title: 'Run Status Bar Script',
         arguments: [command],
       };
       item.show();
 
       this.items.push(item);
     });
+
+    if (overflowCommands.length === 0) {
+      return;
+    }
+
+    const overflowItem = vscode.window.createStatusBarItem(alignment, priority - visibleCommands.length * priorityStep);
+
+    overflowItem.text = createOverflowStatusBarText(overflowCommands);
+    overflowItem.tooltip = createOverflowStatusBarTooltip(overflowCommands);
+    overflowItem.command = {
+      command: 'scriptDock.pickStatusBarCommand',
+      title: 'Run Hidden Status Bar Script',
+    };
+    overflowItem.show();
+
+    this.items.push(overflowItem);
   }
 
   dispose() {
@@ -82,6 +109,29 @@ export class StatusBarController implements vscode.Disposable {
       this.items.pop()?.dispose();
     }
   }
+}
+
+function createOverflowStatusBarText(commands: StatusBarCommand[]): string {
+  if (commands.some((command) => getStatusBarCommandRunStatus(command).state === 'running')) {
+    return `$(sync~spin) ${commands.length} more`;
+  }
+
+  if (commands.some((command) => getStatusBarCommandRunStatus(command).state === 'failed')) {
+    return `$(error) ${commands.length} more`;
+  }
+
+  return `$(more) ${commands.length} more`;
+}
+
+function createOverflowStatusBarTooltip(commands: StatusBarCommand[]): vscode.MarkdownString {
+  const tooltip = new vscode.MarkdownString('', true);
+
+  tooltip.isTrusted = false;
+  tooltip.appendMarkdown('**Script Dock overflow**\n\n');
+  tooltip.appendMarkdown('Click to run a pinned script.\n\n');
+  tooltip.appendMarkdown(commands.map((command) => `- ${describeCompactCommand(command)}`).join('\n'));
+
+  return tooltip;
 }
 
 function createCompactStatusBarText(commands: StatusBarCommand[]): string {
@@ -103,11 +153,11 @@ function createCompactStatusBarTooltip(commands: StatusBarCommand[]): vscode.Mar
   tooltip.appendMarkdown('**Script Dock**\n\n');
 
   if (commands.length === 0) {
-    tooltip.appendMarkdown('No status bar commands configured.');
+    tooltip.appendMarkdown('No status bar scripts configured.');
     return tooltip;
   }
 
-  tooltip.appendMarkdown('Click to run a status bar command.\n\n');
+  tooltip.appendMarkdown('Click to run a status bar script.\n\n');
   tooltip.appendMarkdown(commands.map((command) => `- ${describeCompactCommand(command)}`).join('\n'));
 
   return tooltip;
@@ -139,6 +189,7 @@ function createStatusBarTooltip(
     scriptNames,
     command.autoClose,
     command.packagePath,
+    getStatusBarFailurePolicy(command),
   );
   const runStatus = getStatusBarCommandRunStatus(command);
   const lastRun =
@@ -154,6 +205,7 @@ function createStatusBarTooltip(
   tooltip.appendMarkdown(
     `Mode: ${describeExecutionMode(executionMode, scriptNames, command.autoClose, command.packagePath)}\n\n`,
   );
+  tooltip.appendMarkdown(`Failure policy: ${describeFailurePolicy(command)}\n\n`);
 
   if (lastRun) {
     tooltip.appendMarkdown(`Last run: ${describeLastRun(lastRun)}\n\n`);
@@ -164,7 +216,7 @@ function createStatusBarTooltip(
   }
 
   tooltip.appendMarkdown(`Package: \`${formatPackagePath(command.packagePath)}\`\n\n`);
-  tooltip.appendMarkdown(`Command: \`${terminalCommand}\``);
+  tooltip.appendMarkdown(`Terminal: \`${terminalCommand}\``);
 
   return tooltip;
 }
@@ -174,11 +226,17 @@ function createPreviewTerminalCommand(
   scriptNames: string[],
   autoClose?: boolean,
   packagePath = '.',
+  failurePolicy: StatusBarCommandFailurePolicy = getDefaultFailurePolicy(),
 ): string {
-  const command = scriptNames.map((scriptName) => createRunCommand(packageManager, scriptName)).join(' && ');
+  const separator = failurePolicy === 'continue' ? ' ; ' : ' && ';
+  const command = scriptNames.map((scriptName) => createRunCommand(packageManager, scriptName)).join(separator);
   const shouldAutoClose = shouldAutoCloseTerminal(scriptNames, autoClose, packagePath);
 
   return shouldAutoClose ? `${command} && exit` : command;
+}
+
+function getDefaultFailurePolicy(): StatusBarCommandFailurePolicy {
+  return 'stop';
 }
 
 function formatPackagePath(packagePath?: string): string {
@@ -239,6 +297,12 @@ function describeExecutionMode(
   }
 
   return `opens a terminal and ${describesTerminalLifecycle(scriptNames, autoClose, packagePath)}`;
+}
+
+function describeFailurePolicy(command: StatusBarCommand): string {
+  return getStatusBarFailurePolicy(command) === 'continue'
+    ? 'continues after failed scripts and reports failure at the end'
+    : 'stops at the first failed script';
 }
 
 function describeRunStatus(runStatus: ReturnType<typeof getStatusBarCommandRunStatus>): string {

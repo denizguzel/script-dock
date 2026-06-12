@@ -81,6 +81,14 @@ export function getStatusBarPriorityStep(): number {
   return vscode.workspace.getConfiguration(configurationSection).get<number>('statusBarPriorityStep', 10);
 }
 
+export function getStatusBarOverflowLimit(): number {
+  return vscode.workspace.getConfiguration(configurationSection).get<number>('statusBarOverflowLimit', 6);
+}
+
+export function shouldIncludeNestedGitRepositories(): boolean {
+  return vscode.workspace.getConfiguration(configurationSection).get<boolean>('includeNestedGitRepositories', false);
+}
+
 export async function updateScriptListPreference(key: ScriptListPreferenceKey, value: string[]) {
   await updateWorkspacePreference(key, value);
 }

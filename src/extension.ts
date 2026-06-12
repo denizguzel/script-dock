@@ -15,6 +15,7 @@ import {
   showRunHistory,
   showHiddenScript,
   updateStatusBarCommandExecutionMode,
+  updateStatusBarCommandFailurePolicy,
   updateScriptListSetting,
   useCompactStatusBar,
   useExpandedStatusBar,
@@ -28,6 +29,7 @@ import {
   onDidChangeWorkspacePreferences,
 } from './config';
 import { onDidChangeStatusBarCommandRunState } from './command-runner';
+import { getPackageRoots, getScriptsForPackageRoots, getVisibleScriptsFromScripts } from './scripts';
 import { StatusBarController } from './status-bar';
 import { ScriptItem, ScriptsDragAndDropController, ScriptsProvider } from './tree';
 
@@ -47,7 +49,10 @@ export function activate(context: vscode.ExtensionContext) {
     scriptsTreeView.onDidCollapseElement((event) => void scriptsProvider.collapseGroup(event.element)),
     scriptsTreeView.onDidExpandElement((event) => void scriptsProvider.expandGroup(event.element)),
     { dispose: disposeCommandRunner },
-    vscode.commands.registerCommand('scriptDock.refreshScripts', () => scriptsProvider.refresh()),
+    vscode.commands.registerCommand('scriptDock.refreshScripts', () => {
+      scriptsProvider.refresh();
+      void updateViewContexts();
+    }),
     vscode.commands.registerCommand('scriptDock.runScript', runScript),
     vscode.commands.registerCommand('scriptDock.runStatusBarCommand', runStatusBarCommand),
     vscode.commands.registerCommand('scriptDock.pickStatusBarCommand', pickAndRunStatusBarCommand),
@@ -71,6 +76,12 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('scriptDock.runStatusBarCommandInTerminal', (item?: ScriptItem) =>
       updateStatusBarCommandExecutionMode(item, 'terminal'),
     ),
+    vscode.commands.registerCommand('scriptDock.stopChainOnFailure', (item?: unknown) =>
+      updateStatusBarCommandFailurePolicy(item, 'stop'),
+    ),
+    vscode.commands.registerCommand('scriptDock.continueChainOnFailure', (item?: unknown) =>
+      updateStatusBarCommandFailurePolicy(item, 'continue'),
+    ),
     vscode.commands.registerCommand('scriptDock.moveStatusBarCommandsLeft', moveStatusBarCommandsLeft),
     vscode.commands.registerCommand('scriptDock.moveStatusBarCommandsRight', moveStatusBarCommandsRight),
     vscode.commands.registerCommand('scriptDock.useCompactStatusBar', useCompactStatusBar),
@@ -89,6 +100,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration(configurationSection)) {
         scriptsProvider.refresh();
+        void updateViewContexts();
         void vscode.commands.executeCommand(
           'setContext',
           'scriptDock.statusBarAlignment',
@@ -98,8 +110,13 @@ export function activate(context: vscode.ExtensionContext) {
         void statusBarController.refresh();
       }
     }),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      scriptsProvider.refresh();
+      void updateViewContexts();
+    }),
     onDidChangeWorkspacePreferences(() => {
       scriptsProvider.refresh();
+      void updateViewContexts();
       void vscode.commands.executeCommand(
         'setContext',
         'scriptDock.statusBarAlignment',
@@ -112,7 +129,41 @@ export function activate(context: vscode.ExtensionContext) {
 
   void vscode.commands.executeCommand('setContext', 'scriptDock.statusBarAlignment', getStatusBarAlignmentPreference());
   void vscode.commands.executeCommand('setContext', 'scriptDock.statusBarDisplayMode', getStatusBarDisplayMode());
+  void updateViewContexts();
   void statusBarController.refresh();
 }
 
 export function deactivate() {}
+
+async function updateViewContexts() {
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+
+  if (!workspaceFolder) {
+    await setViewContexts({
+      hasPackageJson: false,
+      hasPackageScripts: false,
+      hasVisibleScripts: false,
+    });
+    return;
+  }
+
+  const packageRoots = await getPackageRoots(workspaceFolder);
+  const allScripts = await getScriptsForPackageRoots(packageRoots);
+  const visibleScripts = getVisibleScriptsFromScripts(allScripts);
+
+  await setViewContexts({
+    hasPackageJson: packageRoots.length > 0,
+    hasPackageScripts: allScripts.length > 0,
+    hasVisibleScripts: visibleScripts.length > 0,
+  });
+}
+
+async function setViewContexts(contexts: {
+  hasPackageJson: boolean;
+  hasPackageScripts: boolean;
+  hasVisibleScripts: boolean;
+}) {
+  await vscode.commands.executeCommand('setContext', 'scriptDock.hasPackageJson', contexts.hasPackageJson);
+  await vscode.commands.executeCommand('setContext', 'scriptDock.hasPackageScripts', contexts.hasPackageScripts);
+  await vscode.commands.executeCommand('setContext', 'scriptDock.hasVisibleScripts', contexts.hasVisibleScripts);
+}

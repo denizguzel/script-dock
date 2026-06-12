@@ -1,4 +1,4 @@
-import type { StatusBarCommand, StatusBarCommandExecutionMode } from './types';
+import type { StatusBarCommand, StatusBarCommandExecutionMode, StatusBarCommandFailurePolicy } from './types';
 
 export function createStatusBarCommandKey(command: StatusBarCommand): string {
   return JSON.stringify({
@@ -18,4 +18,8 @@ export function getStatusBarCommandScripts(command: StatusBarCommand): string[] 
 
 export function getStatusBarExecutionMode(command: StatusBarCommand): StatusBarCommandExecutionMode {
   return command.executionMode ?? 'terminal';
+}
+
+export function getStatusBarFailurePolicy(command: StatusBarCommand): StatusBarCommandFailurePolicy {
+  return command.failurePolicy ?? 'stop';
 }
