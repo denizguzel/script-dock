@@ -2,11 +2,15 @@
   "name": "script-dock",
   "displayName": "Script Dock",
   "version": "0.0.1",
-  "private": true,
   "description": "Run workspace package scripts from a compact VS Code side panel.",
   "categories": [
     "Other"
   ],
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/denizguzel/script-dock.git"
+  },
   "publisher": "scriptdock",
   "type": "commonjs",
   "main": "./dist/extension.js",
@@ -17,12 +21,15 @@
     "knip": "knip",
     "lint": "oxlint && bun run typecheck && bun run knip && bun run format:check",
     "lint:fix": "oxlint --fix && bun run format",
+    "package:check": "bun run format && bun run lint && bun run build",
+    "package:vsix": "bun run package:check && vsce package --out script-dock.vsix",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "watch": "tsc --watch -p tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "25.9.3",
     "@types/vscode": "1.120.0",
+    "@vscode/vsce": "3.9.2",
     "knip": "6.16.1",
     "oxfmt": "0.54.0",
     "oxlint": "1.69.0",
@@ -451,8 +458,9 @@
   "activationEvents": [
     "onStartupFinished"
   ],
+  "icon": "resources/script-dock-icon.png",
   "engines": {
-    "vscode": ">=1.105.0"
+    "vscode": ">=1.120.0"
   },
   "packageManager": "bun@1.3.14"
 }
