@@ -7,6 +7,7 @@ export type PackageManager = 'auto' | 'bun' | 'npm' | 'pnpm' | 'yarn';
 export type ResolvedPackageManager = Exclude<PackageManager, 'auto'>;
 export type StatusBarAlignmentPreference = 'left' | 'right';
 export type StatusBarCommandExecutionMode = 'background' | 'terminal';
+export type StatusBarDisplayMode = 'compact' | 'expanded';
 type StatusBarCommandRunState = 'failed' | 'idle' | 'running' | 'success';
 
 export interface PackageRoot {
@@ -51,11 +52,23 @@ export interface ScriptRunHistory {
   success: boolean;
 }
 
+export interface CommandActivity {
+  commandKey: string;
+  label: string;
+  mode: StatusBarCommandExecutionMode;
+  packagePath?: string;
+  scriptNames: string[];
+  startedAt: number;
+}
+
 export interface WorkspacePreferences {
   autoCloseScripts: string[];
+  commandActivity: CommandActivity[];
+  collapsedTreeGroups: string[];
   favoriteScripts: string[];
   hideScripts: string[];
   runHistory: ScriptRunHistory[];
   statusBarAlignment: StatusBarAlignmentPreference;
   statusBarCommands: StatusBarCommand[];
+  statusBarDisplayMode: StatusBarDisplayMode;
 }

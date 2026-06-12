@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
 import type {
+  CommandActivity,
   PackageManager,
   ScriptRunHistory,
   StatusBarAlignmentPreference,
   StatusBarCommand,
+  StatusBarDisplayMode,
   WorkspacePreferences,
 } from './types';
 
@@ -36,6 +38,14 @@ export function getRunHistory(): ScriptRunHistory[] {
   return getWorkspacePreference('runHistory') ?? [];
 }
 
+export function getCommandActivity(): CommandActivity[] {
+  return getWorkspacePreference('commandActivity') ?? [];
+}
+
+export function getCollapsedTreeGroups(): string[] {
+  return getWorkspacePreference('collapsedTreeGroups') ?? [];
+}
+
 export function getConfiguredPackageManager(): PackageManager {
   return vscode.workspace.getConfiguration(configurationSection).get<PackageManager>('packageManager', 'auto');
 }
@@ -52,6 +62,15 @@ export function getStatusBarAlignment(): vscode.StatusBarAlignment {
 
 export function getStatusBarAlignmentPreference(): StatusBarAlignmentPreference {
   return getStatusBarAlignment() === vscode.StatusBarAlignment.Right ? 'right' : 'left';
+}
+
+export function getStatusBarDisplayMode(): StatusBarDisplayMode {
+  return (
+    getWorkspacePreference('statusBarDisplayMode') ??
+    vscode.workspace
+      .getConfiguration(configurationSection)
+      .get<StatusBarDisplayMode>('statusBarDisplayMode', 'expanded')
+  );
 }
 
 export function getStatusBarPriority(): number {
@@ -74,20 +93,37 @@ export async function updateStatusBarAlignment(value: StatusBarAlignmentPreferen
   await updateWorkspacePreference('statusBarAlignment', value);
 }
 
+export async function updateStatusBarDisplayMode(value: StatusBarDisplayMode) {
+  await updateWorkspacePreference('statusBarDisplayMode', value);
+}
+
 export async function updateRunHistory(entry: ScriptRunHistory) {
   const history = getRunHistory().filter((item) => item.commandKey !== entry.commandKey);
 
   await updateWorkspacePreference('runHistory', [entry, ...history].slice(0, 50));
 }
 
+export async function updateCommandActivity(entry: CommandActivity) {
+  const activity = getCommandActivity().filter((item) => item.commandKey !== entry.commandKey);
+
+  await updateWorkspacePreference('commandActivity', [entry, ...activity].slice(0, 50));
+}
+
+export async function updateCollapsedTreeGroups(value: string[]) {
+  await updateWorkspacePreference('collapsedTreeGroups', value);
+}
+
 export async function resetWorkspacePreferences() {
   const preferenceKeys: PreferenceKey[] = [
     'autoCloseScripts',
+    'commandActivity',
+    'collapsedTreeGroups',
     'favoriteScripts',
     'hideScripts',
     'runHistory',
     'statusBarAlignment',
     'statusBarCommands',
+    'statusBarDisplayMode',
   ];
 
   await Promise.all(preferenceKeys.map((key) => workspaceState?.update(createWorkspacePreferenceKey(key), undefined)));
