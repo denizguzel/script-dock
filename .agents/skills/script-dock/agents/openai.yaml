@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Script Dock'
+  short_description: 'Guide Script Dock extension work'
+  default_prompt: 'Use $script-dock to modify and verify the Script Dock VS Code extension.'

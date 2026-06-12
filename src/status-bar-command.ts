@@ -1,0 +1,20 @@
+import type { StatusBarCommand, StatusBarCommandExecutionMode } from './types';
+
+export function createStatusBarCommandKey(command: StatusBarCommand): string {
+  return JSON.stringify({
+    label: command.label,
+    scripts: getStatusBarCommandScripts(command),
+  });
+}
+
+export function getStatusBarCommandScripts(command: StatusBarCommand): string[] {
+  if (command.script) {
+    return [command.script];
+  }
+
+  return command.scripts ?? [];
+}
+
+export function getStatusBarExecutionMode(command: StatusBarCommand): StatusBarCommandExecutionMode {
+  return command.executionMode ?? 'terminal';
+}
