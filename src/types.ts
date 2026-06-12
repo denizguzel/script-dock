@@ -8,6 +8,7 @@ export type ResolvedPackageManager = Exclude<PackageManager, 'auto'>;
 export type StatusBarAlignmentPreference = 'left' | 'right';
 export type StatusBarCommandExecutionMode = 'background' | 'terminal';
 export type StatusBarDisplayMode = 'compact' | 'expanded';
+export type StatusBarCommandFailurePolicy = 'continue' | 'stop';
 type StatusBarCommandRunState = 'failed' | 'idle' | 'running' | 'success';
 
 export interface PackageRoot {
@@ -31,6 +32,7 @@ export interface StatusBarCommand {
   icon?: string;
   autoClose?: boolean;
   executionMode?: StatusBarCommandExecutionMode;
+  failurePolicy?: StatusBarCommandFailurePolicy;
 }
 
 export interface StatusBarCommandRunStatus {

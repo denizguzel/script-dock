@@ -19,10 +19,21 @@ import {
 } from './config';
 import { resolvePackageManager } from './package-manager';
 import { getAllScripts, getFavoriteScripts, getPackageRoots, getVisibleScripts } from './scripts';
-import { createStatusBarCommandKey, getStatusBarCommandScripts, getStatusBarExecutionMode } from './status-bar-command';
+import {
+  createStatusBarCommandKey,
+  getStatusBarCommandScripts,
+  getStatusBarExecutionMode,
+  getStatusBarFailurePolicy,
+} from './status-bar-command';
 import { createTerminalCommand, runTerminalCommand } from './terminal';
 import { ScriptItem } from './tree';
-import type { PackageRoot, ScriptEntry, StatusBarCommand, StatusBarCommandExecutionMode } from './types';
+import type {
+  PackageRoot,
+  ScriptEntry,
+  StatusBarCommand,
+  StatusBarCommandExecutionMode,
+  StatusBarCommandFailurePolicy,
+} from './types';
 
 export async function runScript(item?: ScriptItem) {
   const scriptItem = item ?? (await pickScript());
@@ -56,7 +67,7 @@ export async function runStatusBarCommand(command: StatusBarCommand, options: { 
   const scriptNames = getStatusBarCommandScripts(command);
 
   if (scriptNames.length === 0) {
-    vscode.window.showWarningMessage(`Status bar command "${command.label}" has no scripts configured.`);
+    vscode.window.showWarningMessage(`Status bar script "${command.label}" has no scripts configured.`);
     return;
   }
 
@@ -124,6 +135,7 @@ export async function runStatusBarCommand(command: StatusBarCommand, options: { 
       cwd: packageRoot.fsPath,
       packageManager,
       packagePath: packageRoot.packagePath,
+      failurePolicy: getStatusBarFailurePolicy(command),
       scriptNames,
     });
 
@@ -151,6 +163,7 @@ export async function runStatusBarCommand(command: StatusBarCommand, options: { 
     scriptNames,
     command.autoClose,
     packageRoot.packagePath,
+    getStatusBarFailurePolicy(command),
   );
 
   runTerminalCommand({
@@ -180,7 +193,7 @@ export async function pickAndRunStatusBarCommand() {
   const commands = getStatusBarCommands();
 
   if (commands.length === 0) {
-    vscode.window.showInformationMessage('Add status bar commands before using compact mode.');
+    vscode.window.showInformationMessage('Add status bar scripts before using compact mode.');
     return;
   }
 
@@ -191,7 +204,7 @@ export async function pickAndRunStatusBarCommand() {
       label: command.label,
       command,
     })),
-    { placeHolder: 'Run a Script Dock status bar command' },
+    { placeHolder: 'Run a Script Dock status bar script' },
   );
 
   if (selected) {
@@ -207,6 +220,12 @@ export async function createScriptChain() {
   }
 
   const scripts = await getVisibleScripts(workspaceFolder);
+
+  if (scripts.length === 0) {
+    vscode.window.showInformationMessage('No package scripts are available for this workspace.');
+    return;
+  }
+
   const selected = await vscode.window.showQuickPick(
     scripts.map((script) => createScriptQuickPickItem(script)),
     {
@@ -242,6 +261,12 @@ export async function createScriptChain() {
     return;
   }
 
+  const failurePolicy = await pickFailurePolicy();
+
+  if (!failurePolicy) {
+    return;
+  }
+
   const [first] = selected;
 
   if (!first) {
@@ -255,6 +280,7 @@ export async function createScriptChain() {
       icon: executionMode === 'background' ? 'check-all' : 'terminal',
       label,
       packagePath: first.script.packageRoot.packagePath,
+      failurePolicy,
       scripts: selected.map((item) => item.script.name),
     },
   ]);
@@ -296,6 +322,7 @@ export async function addSuggestedChains() {
     ...getStatusBarCommands(),
     ...selected.map((item) => ({
       executionMode: 'background' as const,
+      failurePolicy: 'stop' as const,
       icon: 'check-all',
       label: item.suggestion.label,
       packagePath: item.suggestion.packagePath,
@@ -365,6 +392,29 @@ export async function useExpandedStatusBar() {
   await vscode.commands.executeCommand('setContext', 'scriptDock.statusBarDisplayMode', 'expanded');
 }
 
+export async function updateStatusBarCommandFailurePolicy(
+  commandOrItem: unknown,
+  failurePolicy: StatusBarCommandFailurePolicy,
+) {
+  const command = await resolveEditableStatusBarCommand(commandOrItem);
+
+  if (!command) {
+    return;
+  }
+
+  const commandKey = createStatusBarCommandKey(command);
+  const nextCommands = getStatusBarCommands().map((item) =>
+    createStatusBarCommandKey(item) === commandKey
+      ? {
+          ...item,
+          failurePolicy,
+        }
+      : item,
+  );
+
+  await updateStatusBarCommands(nextCommands);
+}
+
 export async function addStatusBarCommand(item?: ScriptItem) {
   const scriptItem = item ?? (await pickScript());
 
@@ -389,6 +439,7 @@ export async function addStatusBarCommand(item?: ScriptItem) {
     ...commands,
     {
       executionMode: 'terminal',
+      failurePolicy: 'stop',
       icon: 'terminal',
       label: scriptItem.scriptName,
       packagePath: scriptItem.packageRoot.packagePath,
@@ -589,10 +640,30 @@ async function pickExecutionMode(): Promise<StatusBarCommandExecutionMode | unde
         mode: 'terminal' as const,
       },
     ],
-    { placeHolder: 'Choose how this command should run' },
+    { placeHolder: 'Choose how this script should run' },
   );
 
   return selected?.mode;
+}
+
+async function pickFailurePolicy(): Promise<StatusBarCommandFailurePolicy | undefined> {
+  const selected = await vscode.window.showQuickPick(
+    [
+      {
+        description: 'Stops the chain as soon as one script fails',
+        label: 'Stop on failure',
+        policy: 'stop' as const,
+      },
+      {
+        description: 'Runs the rest of the chain, then reports the script as failed',
+        label: 'Continue after failures',
+        policy: 'continue' as const,
+      },
+    ],
+    { placeHolder: 'Choose how this chain handles failed scripts' },
+  );
+
+  return selected?.policy;
 }
 
 function createScriptQuickPickItem(script: ScriptEntry) {
@@ -613,31 +684,34 @@ function createChainSuggestions(
       createChainKey(getCommandPackagePath(command), getStatusBarCommandScripts(command)),
     ),
   );
-  const scriptsByPackage = new Map<string, Set<string>>();
+  const scriptsByPackage = new Map<string, ScriptEntry[]>();
   const suggestions: Array<{ label: string; packagePath: string; scripts: string[] }> = [];
   const candidates = [
-    { label: 'verify', scripts: ['format', 'knip', 'build'] },
-    { label: 'quality', scripts: ['format', 'lint', 'build'] },
-    { label: 'ci', scripts: ['lint', 'test', 'build'] },
-    { label: 'check', scripts: ['typecheck', 'lint', 'test'] },
-    { label: 'test + build', scripts: ['test', 'build'] },
-    { label: 'format + lint', scripts: ['format', 'lint'] },
-    { label: 'lint + build', scripts: ['lint', 'build'] },
+    { label: 'verify', roles: ['format', 'knip', 'build'] },
+    { label: 'quality', roles: ['format', 'lint', 'build'] },
+    { label: 'ci', roles: ['lint', 'test', 'build'] },
+    { label: 'check', roles: ['typecheck', 'lint', 'test'] },
+    { label: 'ship check', roles: ['format', 'typecheck', 'test', 'build'] },
+    { label: 'test + build', roles: ['test', 'build'] },
+    { label: 'format + lint', roles: ['format', 'lint'] },
+    { label: 'lint + build', roles: ['lint', 'build'] },
   ];
 
   for (const script of scripts) {
-    const packageScripts = scriptsByPackage.get(script.packageRoot.packagePath) ?? new Set<string>();
-    packageScripts.add(script.name);
+    const packageScripts = scriptsByPackage.get(script.packageRoot.packagePath) ?? [];
+    packageScripts.push(script);
     scriptsByPackage.set(script.packageRoot.packagePath, packageScripts);
   }
 
   for (const [packagePath, packageScripts] of scriptsByPackage) {
     for (const candidate of candidates) {
-      if (!candidate.scripts.every((scriptName) => packageScripts.has(scriptName))) {
+      const suggestionScripts = resolveCandidateScripts(packageScripts, candidate.roles);
+
+      if (!suggestionScripts) {
         continue;
       }
 
-      const key = createChainKey(packagePath, candidate.scripts);
+      const key = createChainKey(packagePath, suggestionScripts);
 
       if (existingKeys.has(key)) {
         continue;
@@ -646,13 +720,72 @@ function createChainSuggestions(
       suggestions.push({
         label: candidate.label,
         packagePath,
-        scripts: candidate.scripts,
+        scripts: suggestionScripts,
       });
       existingKeys.add(key);
     }
   }
 
   return suggestions;
+}
+
+function resolveCandidateScripts(packageScripts: ScriptEntry[], roles: string[]): string[] | undefined {
+  const selectedScripts = roles
+    .map((role) => findScriptForRole(packageScripts, role))
+    .filter((scriptName): scriptName is string => scriptName !== undefined);
+  const uniqueScripts = [...new Set(selectedScripts)];
+
+  if (uniqueScripts.length !== roles.length) {
+    return undefined;
+  }
+
+  return uniqueScripts;
+}
+
+function findScriptForRole(packageScripts: ScriptEntry[], role: string): string | undefined {
+  const exact = packageScripts.find((script) => normalizeScriptName(script.name) === role);
+
+  if (exact) {
+    return exact.name;
+  }
+
+  return packageScripts.find((script) => scriptMatchesRole(script, role))?.name;
+}
+
+function normalizeScriptName(scriptName: string): string {
+  return scriptName.replaceAll(':', '').replaceAll('-', '').toLowerCase();
+}
+
+function scriptMatchesRole(script: ScriptEntry, role: string): boolean {
+  const name = script.name.toLowerCase();
+  const command = script.command.toLowerCase();
+  const source = `${name} ${command}`;
+
+  if (role === 'format') {
+    return /\b(format|prettier|oxfmt|biome format)\b/.test(source);
+  }
+
+  if (role === 'lint') {
+    return /\b(lint|eslint|oxlint|biome check)\b/.test(source);
+  }
+
+  if (role === 'typecheck') {
+    return /\b(typecheck|type-check|tsc|vue-tsc)\b/.test(source);
+  }
+
+  if (role === 'knip') {
+    return /\bknip\b/.test(source);
+  }
+
+  if (role === 'test') {
+    return /\b(test|vitest|jest|playwright|cypress)\b/.test(source);
+  }
+
+  if (role === 'build') {
+    return /\b(build|vite build|next build|tsc -b)\b/.test(source);
+  }
+
+  return false;
 }
 
 function createChainKey(packagePath: string, scriptNames: string[]): string {
@@ -672,6 +805,51 @@ function createFailureMessage(
 
 function getCommandPackagePath(command: StatusBarCommand): string {
   return command.packagePath ?? '.';
+}
+
+async function resolveEditableStatusBarCommand(commandOrItem: unknown): Promise<StatusBarCommand | undefined> {
+  if (isStatusBarCommandTreeItem(commandOrItem)) {
+    return commandOrItem.statusBarCommand;
+  }
+
+  if (isStatusBarCommand(commandOrItem)) {
+    return commandOrItem;
+  }
+
+  const scriptItem = commandOrItem instanceof ScriptItem ? commandOrItem : await pickScript();
+
+  if (!scriptItem) {
+    return undefined;
+  }
+
+  const command = getStatusBarCommands().find((item) => {
+    const scriptNames = getStatusBarCommandScripts(item);
+
+    return (
+      scriptNames.length === 1 &&
+      scriptNames[0] === scriptItem.scriptName &&
+      getCommandPackagePath(item) === scriptItem.packageRoot.packagePath
+    );
+  });
+
+  if (!command) {
+    vscode.window.showInformationMessage(`${scriptItem.scriptName} is not shown in the status bar.`);
+  }
+
+  return command;
+}
+
+function isStatusBarCommandTreeItem(value: unknown): value is { statusBarCommand: StatusBarCommand } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'statusBarCommand' in value &&
+    isStatusBarCommand(value.statusBarCommand)
+  );
+}
+
+function isStatusBarCommand(value: unknown): value is StatusBarCommand {
+  return typeof value === 'object' && value !== null && 'label' in value && typeof value.label === 'string';
 }
 
 function formatPackagePath(packagePath: string): string {

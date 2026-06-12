@@ -1,7 +1,13 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import * as vscode from 'vscode';
 import { updateRunHistory } from './config';
-import type { ResolvedPackageManager, ScriptRunHistory, StatusBarCommand, StatusBarCommandRunStatus } from './types';
+import type {
+  ResolvedPackageManager,
+  ScriptRunHistory,
+  StatusBarCommand,
+  StatusBarCommandFailurePolicy,
+  StatusBarCommandRunStatus,
+} from './types';
 import { createStatusBarCommandKey } from './status-bar-command';
 
 interface BackgroundRunOptions {
@@ -9,6 +15,7 @@ interface BackgroundRunOptions {
   cwd: string;
   packageManager: ResolvedPackageManager;
   packagePath?: string;
+  failurePolicy?: StatusBarCommandFailurePolicy;
   scriptNames: string[];
 }
 
@@ -45,6 +52,9 @@ export async function runStatusBarCommandInBackground(options: BackgroundRunOpti
   const commandKey = createStatusBarCommandKey(options.command);
   const startedAt = Date.now();
   const outputBuffer = new OutputTailBuffer();
+  const failurePolicy = options.failurePolicy ?? 'stop';
+  const failedScripts: string[] = [];
+  let lastExitCode: number | null | undefined;
 
   setRunState(commandKey, { state: 'running' });
   appendRunHeader(options);
@@ -52,32 +62,66 @@ export async function runStatusBarCommandInBackground(options: BackgroundRunOpti
   for (const scriptName of options.scriptNames) {
     const result = await runScript(options.packageManager, scriptName, options.cwd, commandKey, outputBuffer);
 
-    if (!result.success) {
-      const message = `${options.command.label} failed while running "${scriptName}".`;
-      const durationMs = Date.now() - startedAt;
-
-      outputChannel.appendLine('');
-      outputChannel.appendLine(`[failed] ${message}`);
-      setRunState(commandKey, createFailureStatus(message, result.exitCode));
-      void updateRunHistory(
-        createRunHistoryEntry(
-          options,
-          commandKey,
-          createRunResult({
-            durationMs,
-            exitCode: result.exitCode,
-            message,
-            outputTail: outputBuffer.value,
-            success: false,
-          }),
-        ),
-      );
-
-      return createFailureResult(message, result.exitCode, durationMs, outputBuffer.value);
+    if (result.success) {
+      continue;
     }
+
+    failedScripts.push(scriptName);
+    lastExitCode = result.exitCode;
+
+    if (failurePolicy === 'continue') {
+      outputChannel.appendLine('');
+      outputChannel.appendLine(`[failed] ${scriptName}; continuing because this command allows failures.`);
+      continue;
+    }
+
+    const message = `${options.command.label} failed while running "${scriptName}".`;
+    const durationMs = Date.now() - startedAt;
+
+    outputChannel.appendLine('');
+    outputChannel.appendLine(`[failed] ${message}`);
+    setRunState(commandKey, createFailureStatus(message, result.exitCode));
+    void updateRunHistory(
+      createRunHistoryEntry(
+        options,
+        commandKey,
+        createRunResult({
+          durationMs,
+          exitCode: result.exitCode,
+          message,
+          outputTail: outputBuffer.value,
+          success: false,
+        }),
+      ),
+    );
+
+    return createFailureResult(message, result.exitCode, durationMs, outputBuffer.value);
   }
 
   const durationMs = Date.now() - startedAt;
+
+  if (failedScripts.length > 0) {
+    const message = `${options.command.label} finished with failed script${failedScripts.length > 1 ? 's' : ''}: ${failedScripts.join(', ')}.`;
+
+    outputChannel.appendLine('');
+    outputChannel.appendLine(`[failed] ${message}`);
+    setRunState(commandKey, createFailureStatus(message, lastExitCode));
+    void updateRunHistory(
+      createRunHistoryEntry(
+        options,
+        commandKey,
+        createRunResult({
+          durationMs,
+          exitCode: lastExitCode,
+          message,
+          outputTail: outputBuffer.value,
+          success: false,
+        }),
+      ),
+    );
+
+    return createFailureResult(message, lastExitCode, durationMs, outputBuffer.value);
+  }
 
   outputChannel.appendLine('');
   outputChannel.appendLine(`[success] ${options.command.label}`);
