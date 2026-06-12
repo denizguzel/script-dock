@@ -28,6 +28,7 @@ Use this skill to keep changes to `script-dock` consistent with the extension's 
 - `src/commands.ts`: command handlers and preference mutations.
 - `src/terminal.ts`: visible terminal command creation and execution.
 - `src/command-runner.ts`: background execution, Output Channel, spinner/check/error state.
+- `src/scripts.ts`: package root discovery is monorepo-aware; script ids use `packagePath#script` outside the root package.
 - `src/types.ts`: shared interfaces. Prefer `interface` for object shapes.
 
 ## UX Rules
@@ -40,6 +41,9 @@ Use this skill to keep changes to `script-dock` consistent with the extension's 
   - Missing `executionMode` defaults to terminal mode. Do not infer background mode from script names such as `build`, `format`, or `dev`.
 - Treat auto-close as a terminal lifecycle preference, not as execution mode.
 - Background failures should be discoverable: keep the error icon visible, show output, and offer rerun.
+- Keep chain creation available from the side panel, not only manual JSON.
+- Keep status bar command ordering manageable from the side panel; prefer drag and drop over separate reorder commands.
+- Keep background run history concise and stored in workspaceState.
 
 ## Manifest Rules
 

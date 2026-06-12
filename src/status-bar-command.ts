@@ -3,6 +3,7 @@ import type { StatusBarCommand, StatusBarCommandExecutionMode } from './types';
 export function createStatusBarCommandKey(command: StatusBarCommand): string {
   return JSON.stringify({
     label: command.label,
+    packagePath: command.packagePath ?? '.',
     scripts: getStatusBarCommandScripts(command),
   });
 }

@@ -1,5 +1,11 @@
 import * as vscode from 'vscode';
-import type { PackageManager, StatusBarAlignmentPreference, StatusBarCommand, WorkspacePreferences } from './types';
+import type {
+  PackageManager,
+  ScriptRunHistory,
+  StatusBarAlignmentPreference,
+  StatusBarCommand,
+  WorkspacePreferences,
+} from './types';
 
 export const configurationSection = 'scriptDock';
 
@@ -24,6 +30,10 @@ export function getStatusBarCommands(): StatusBarCommand[] {
     getWorkspacePreference('statusBarCommands') ??
     vscode.workspace.getConfiguration(configurationSection).get<StatusBarCommand[]>('statusBarCommands', [])
   );
+}
+
+export function getRunHistory(): ScriptRunHistory[] {
+  return getWorkspacePreference('runHistory') ?? [];
 }
 
 export function getConfiguredPackageManager(): PackageManager {
@@ -62,6 +72,26 @@ export async function updateStatusBarCommands(value: StatusBarCommand[]) {
 
 export async function updateStatusBarAlignment(value: StatusBarAlignmentPreference) {
   await updateWorkspacePreference('statusBarAlignment', value);
+}
+
+export async function updateRunHistory(entry: ScriptRunHistory) {
+  const history = getRunHistory().filter((item) => item.commandKey !== entry.commandKey);
+
+  await updateWorkspacePreference('runHistory', [entry, ...history].slice(0, 50));
+}
+
+export async function resetWorkspacePreferences() {
+  const preferenceKeys: PreferenceKey[] = [
+    'autoCloseScripts',
+    'favoriteScripts',
+    'hideScripts',
+    'runHistory',
+    'statusBarAlignment',
+    'statusBarCommands',
+  ];
+
+  await Promise.all(preferenceKeys.map((key) => workspaceState?.update(createWorkspacePreferenceKey(key), undefined)));
+  onDidChangeWorkspacePreferencesEmitter.fire();
 }
 
 function getWorkspacePreference<Key extends PreferenceKey>(key: Key): WorkspacePreferences[Key] | undefined {
