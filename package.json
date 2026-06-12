@@ -1,12 +1,12 @@
 {
   "name": "script-dock",
   "displayName": "Script Dock",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Run workspace package scripts from a compact VS Code side panel.",
   "categories": [
     "Other"
   ],
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/denizguzel/script-dock.git"
