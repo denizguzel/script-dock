@@ -1,15 +1,20 @@
 import * as vscode from 'vscode';
 import { getConfiguredScripts } from './config';
+import { createScriptId } from './scripts';
 import type { ResolvedPackageManager } from './types';
 
 export function createTerminalCommand(
   packageManager: ResolvedPackageManager,
   scriptNames: string[],
   autoClose?: boolean,
+  packagePath = '.',
 ): string {
   const runCommand = scriptNames.map((scriptName) => createRunCommand(packageManager, scriptName)).join(' && ');
   const shouldAutoClose =
-    autoClose ?? scriptNames.every((scriptName) => getConfiguredScripts('autoCloseScripts').includes(scriptName));
+    autoClose ??
+    scriptNames.every((scriptName) =>
+      getConfiguredScripts('autoCloseScripts').includes(createScriptId(packagePath, scriptName)),
+    );
 
   if (shouldAutoClose) {
     return `${runCommand} && exit`;

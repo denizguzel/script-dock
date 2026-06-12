@@ -1,12 +1,16 @@
 import * as vscode from 'vscode';
 import {
   addStatusBarCommand,
+  createScriptChain,
   moveStatusBarCommandsLeft,
   moveStatusBarCommandsRight,
   pickAndRunFavoriteScript,
   removeStatusBarCommand,
+  resetWorkspacePreferencesCommand,
   runScript,
   runStatusBarCommand,
+  searchScripts,
+  showRunHistory,
   showHiddenScript,
   updateStatusBarCommandExecutionMode,
   updateScriptListSetting,
@@ -19,7 +23,7 @@ import {
   onDidChangeWorkspacePreferences,
 } from './config';
 import { StatusBarController } from './status-bar';
-import { ScriptItem, ScriptsProvider } from './tree';
+import { ScriptItem, ScriptsDragAndDropController, ScriptsProvider } from './tree';
 
 export function activate(context: vscode.ExtensionContext) {
   initializeWorkspacePreferences(context.workspaceState);
@@ -28,12 +32,19 @@ export function activate(context: vscode.ExtensionContext) {
   const statusBarController = new StatusBarController(context);
 
   context.subscriptions.push(
-    vscode.window.registerTreeDataProvider('scriptDock.scripts', scriptsProvider),
+    vscode.window.createTreeView('scriptDock.scripts', {
+      dragAndDropController: new ScriptsDragAndDropController(),
+      treeDataProvider: scriptsProvider,
+    }),
     { dispose: disposeCommandRunner },
     vscode.commands.registerCommand('scriptDock.refreshScripts', () => scriptsProvider.refresh()),
     vscode.commands.registerCommand('scriptDock.runScript', runScript),
     vscode.commands.registerCommand('scriptDock.runStatusBarCommand', runStatusBarCommand),
     vscode.commands.registerCommand('scriptDock.pickFavoriteScript', pickAndRunFavoriteScript),
+    vscode.commands.registerCommand('scriptDock.searchScripts', searchScripts),
+    vscode.commands.registerCommand('scriptDock.createScriptChain', createScriptChain),
+    vscode.commands.registerCommand('scriptDock.showRunHistory', showRunHistory),
+    vscode.commands.registerCommand('scriptDock.resetWorkspacePreferences', resetWorkspacePreferencesCommand),
     vscode.commands.registerCommand('scriptDock.addFavorite', (item?: ScriptItem) =>
       updateScriptListSetting('favoriteScripts', item, 'add'),
     ),

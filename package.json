@@ -45,6 +45,26 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "scriptDock.searchScripts",
+        "title": "Search Scripts",
+        "icon": "$(search)"
+      },
+      {
+        "command": "scriptDock.createScriptChain",
+        "title": "Create Script Chain",
+        "icon": "$(combine)"
+      },
+      {
+        "command": "scriptDock.showRunHistory",
+        "title": "Show Run History",
+        "icon": "$(history)"
+      },
+      {
+        "command": "scriptDock.resetWorkspacePreferences",
+        "title": "Reset Workspace Preferences",
+        "icon": "$(discard)"
+      },
+      {
         "command": "scriptDock.runScript",
         "title": "Run Script",
         "icon": "$(play)"
@@ -136,7 +156,27 @@
           "group": "navigation"
         },
         {
+          "command": "scriptDock.searchScripts",
+          "when": "view == scriptDock.scripts",
+          "group": "navigation"
+        },
+        {
+          "command": "scriptDock.createScriptChain",
+          "when": "view == scriptDock.scripts",
+          "group": "navigation"
+        },
+        {
+          "command": "scriptDock.showRunHistory",
+          "when": "view == scriptDock.scripts",
+          "group": "navigation"
+        },
+        {
           "command": "scriptDock.showHiddenScript",
+          "when": "view == scriptDock.scripts",
+          "group": "navigation"
+        },
+        {
+          "command": "scriptDock.resetWorkspacePreferences",
           "when": "view == scriptDock.scripts",
           "group": "navigation"
         },
@@ -249,6 +289,10 @@
                   "type": "string"
                 },
                 "description": "Package scripts to run sequentially."
+              },
+              "packagePath": {
+                "type": "string",
+                "description": "Workspace-relative package root for this command. Root package uses '.'."
               },
               "icon": {
                 "type": "string",
