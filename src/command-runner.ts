@@ -1,21 +1,12 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import * as vscode from 'vscode';
-import { updateRunHistory } from './config';
-import type {
-  ResolvedPackageManager,
-  ScriptRunHistory,
-  StatusBarCommand,
-  StatusBarCommandFailurePolicy,
-  StatusBarCommandRunStatus,
-} from './types';
+import type { ResolvedPackageManager, StatusBarCommand, StatusBarCommandRunStatus } from './types';
 import { createStatusBarCommandKey } from './status-bar-command';
 
 interface BackgroundRunOptions {
   command: StatusBarCommand;
   cwd: string;
   packageManager: ResolvedPackageManager;
-  packagePath?: string;
-  failurePolicy?: StatusBarCommandFailurePolicy;
   scriptNames: string[];
 }
 
@@ -24,12 +15,14 @@ interface BackgroundRunResult {
   exitCode?: number | null;
   message?: string;
   outputTail?: string;
+  stopped?: boolean;
   success: boolean;
 }
 
 const outputChannel = vscode.window.createOutputChannel('Script Dock');
 const runStates = new Map<string, StatusBarCommandRunStatus>();
 const runningProcesses = new Map<string, ChildProcessWithoutNullStreams>();
+const stoppedCommandKeys = new Set<string>();
 const onDidChangeStatusBarCommandRunStateEmitter = new vscode.EventEmitter<void>();
 
 export const onDidChangeStatusBarCommandRunState = onDidChangeStatusBarCommandRunStateEmitter.event;
@@ -52,9 +45,6 @@ export async function runStatusBarCommandInBackground(options: BackgroundRunOpti
   const commandKey = createStatusBarCommandKey(options.command);
   const startedAt = Date.now();
   const outputBuffer = new OutputTailBuffer();
-  const failurePolicy = options.failurePolicy ?? 'stop';
-  const failedScripts: string[] = [];
-  let lastExitCode: number | null | undefined;
 
   setRunState(commandKey, { state: 'running' });
   appendRunHeader(options);
@@ -66,13 +56,22 @@ export async function runStatusBarCommandInBackground(options: BackgroundRunOpti
       continue;
     }
 
-    failedScripts.push(scriptName);
-    lastExitCode = result.exitCode;
+    if (result.stopped) {
+      const message = `${options.command.label} stopped.`;
+      const durationMs = Date.now() - startedAt;
 
-    if (failurePolicy === 'continue') {
       outputChannel.appendLine('');
-      outputChannel.appendLine(`[failed] ${scriptName}; continuing because this command allows failures.`);
-      continue;
+      outputChannel.appendLine(`[stopped] ${message}`);
+      setRunState(commandKey, createFailureStatus(message, result.exitCode));
+
+      return {
+        durationMs,
+        message,
+        outputTail: outputBuffer.value,
+        stopped: true,
+        success: false,
+        ...(result.exitCode === undefined ? {} : { exitCode: result.exitCode }),
+      };
     }
 
     const message = `${options.command.label} failed while running "${scriptName}".`;
@@ -81,58 +80,15 @@ export async function runStatusBarCommandInBackground(options: BackgroundRunOpti
     outputChannel.appendLine('');
     outputChannel.appendLine(`[failed] ${message}`);
     setRunState(commandKey, createFailureStatus(message, result.exitCode));
-    void updateRunHistory(
-      createRunHistoryEntry(
-        options,
-        commandKey,
-        createRunResult({
-          durationMs,
-          exitCode: result.exitCode,
-          message,
-          outputTail: outputBuffer.value,
-          success: false,
-        }),
-      ),
-    );
 
     return createFailureResult(message, result.exitCode, durationMs, outputBuffer.value);
   }
 
   const durationMs = Date.now() - startedAt;
 
-  if (failedScripts.length > 0) {
-    const message = `${options.command.label} finished with failed script${failedScripts.length > 1 ? 's' : ''}: ${failedScripts.join(', ')}.`;
-
-    outputChannel.appendLine('');
-    outputChannel.appendLine(`[failed] ${message}`);
-    setRunState(commandKey, createFailureStatus(message, lastExitCode));
-    void updateRunHistory(
-      createRunHistoryEntry(
-        options,
-        commandKey,
-        createRunResult({
-          durationMs,
-          exitCode: lastExitCode,
-          message,
-          outputTail: outputBuffer.value,
-          success: false,
-        }),
-      ),
-    );
-
-    return createFailureResult(message, lastExitCode, durationMs, outputBuffer.value);
-  }
-
   outputChannel.appendLine('');
   outputChannel.appendLine(`[success] ${options.command.label}`);
   setRunState(commandKey, { state: 'success' });
-  void updateRunHistory(
-    createRunHistoryEntry(options, commandKey, {
-      durationMs,
-      outputTail: outputBuffer.value,
-      success: true,
-    }),
-  );
   clearTransientSuccess(commandKey);
 
   return {
@@ -155,13 +111,12 @@ export function stopStatusBarCommand(command: StatusBarCommand): boolean {
   }
 
   child.kill();
+  stoppedCommandKeys.add(commandKey);
   runningProcesses.delete(commandKey);
   setRunState(commandKey, {
     message: 'Stopped by user.',
     state: 'failed',
   });
-  outputChannel.appendLine('');
-  outputChannel.appendLine(`[stopped] ${command.label}`);
 
   return true;
 }
@@ -228,10 +183,13 @@ async function runScript(
     });
 
     child.on('close', (exitCode) => {
+      const stopped = stoppedCommandKeys.delete(commandKey);
+
       runningProcesses.delete(commandKey);
       resolve({
         exitCode,
         outputTail: outputBuffer.value,
+        ...(stopped ? { message: 'Stopped by user.', stopped: true } : {}),
         success: exitCode === 0,
       });
     });
@@ -294,51 +252,6 @@ function createFailureResult(
     message,
     outputTail,
     success: false,
-  };
-}
-
-function createRunResult(result: {
-  durationMs: number;
-  exitCode: number | null | undefined;
-  message: string | undefined;
-  outputTail: string;
-  success: boolean;
-}) {
-  return {
-    durationMs: result.durationMs,
-    outputTail: result.outputTail,
-    success: result.success,
-    ...(result.exitCode === undefined ? {} : { exitCode: result.exitCode }),
-    ...(result.message === undefined ? {} : { message: result.message }),
-  };
-}
-
-function createRunHistoryEntry(
-  options: BackgroundRunOptions,
-  commandKey: string,
-  result: {
-    durationMs: number;
-    exitCode?: number | null;
-    message?: string;
-    outputTail: string;
-    success: boolean;
-  },
-): ScriptRunHistory {
-  const base = {
-    commandKey,
-    durationMs: result.durationMs,
-    endedAt: Date.now(),
-    label: options.command.label,
-    outputTail: result.outputTail,
-    scriptNames: options.scriptNames,
-    success: result.success,
-  };
-
-  return {
-    ...base,
-    ...(result.exitCode === undefined ? {} : { exitCode: result.exitCode }),
-    ...(result.message === undefined ? {} : { message: result.message }),
-    ...(options.packagePath === undefined ? {} : { packagePath: options.packagePath }),
   };
 }
 

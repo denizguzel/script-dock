@@ -3,15 +3,9 @@ import { getStatusBarCommandRunStatus, onDidChangeStatusBarCommandRunState } fro
 import { getConfiguredPackageManagerLabel, resolvePackageManager } from './package-manager';
 import { createScriptId } from './scripts';
 import { createRunCommand } from './terminal';
-import {
-  createStatusBarCommandKey,
-  getStatusBarCommandScripts,
-  getStatusBarExecutionMode,
-  getStatusBarFailurePolicy,
-} from './status-bar-command';
+import { getStatusBarCommandScripts, getStatusBarExecutionMode } from './status-bar-command';
 import {
   getConfiguredScripts,
-  getRunHistory,
   getStatusBarAlignment,
   getStatusBarCommands,
   getStatusBarDisplayMode,
@@ -19,7 +13,7 @@ import {
   getStatusBarPriority,
   getStatusBarPriorityStep,
 } from './config';
-import type { ResolvedPackageManager, StatusBarCommand, StatusBarCommandFailurePolicy } from './types';
+import type { ResolvedPackageManager, StatusBarCommand } from './types';
 
 export class StatusBarController implements vscode.Disposable {
   private readonly items: vscode.StatusBarItem[] = [];
@@ -189,13 +183,8 @@ function createStatusBarTooltip(
     scriptNames,
     command.autoClose,
     command.packagePath,
-    getStatusBarFailurePolicy(command),
   );
   const runStatus = getStatusBarCommandRunStatus(command);
-  const lastRun =
-    executionMode === 'background'
-      ? getRunHistory().find((entry) => entry.commandKey === createStatusBarCommandKey(command))
-      : undefined;
   const tooltip = new vscode.MarkdownString('', true);
 
   tooltip.isTrusted = false;
@@ -205,11 +194,6 @@ function createStatusBarTooltip(
   tooltip.appendMarkdown(
     `Mode: ${describeExecutionMode(executionMode, scriptNames, command.autoClose, command.packagePath)}\n\n`,
   );
-  tooltip.appendMarkdown(`Failure policy: ${describeFailurePolicy(command)}\n\n`);
-
-  if (lastRun) {
-    tooltip.appendMarkdown(`Last run: ${describeLastRun(lastRun)}\n\n`);
-  }
 
   if (runStatus.state !== 'idle') {
     tooltip.appendMarkdown(`Status: ${describeRunStatus(runStatus)}\n\n`);
@@ -226,17 +210,11 @@ function createPreviewTerminalCommand(
   scriptNames: string[],
   autoClose?: boolean,
   packagePath = '.',
-  failurePolicy: StatusBarCommandFailurePolicy = getDefaultFailurePolicy(),
 ): string {
-  const separator = failurePolicy === 'continue' ? ' ; ' : ' && ';
-  const command = scriptNames.map((scriptName) => createRunCommand(packageManager, scriptName)).join(separator);
+  const command = scriptNames.map((scriptName) => createRunCommand(packageManager, scriptName)).join(' && ');
   const shouldAutoClose = shouldAutoCloseTerminal(scriptNames, autoClose, packagePath);
 
   return shouldAutoClose ? `${command} && exit` : command;
-}
-
-function getDefaultFailurePolicy(): StatusBarCommandFailurePolicy {
-  return 'stop';
 }
 
 function formatPackagePath(packagePath?: string): string {
@@ -299,12 +277,6 @@ function describeExecutionMode(
   return `opens a terminal and ${describesTerminalLifecycle(scriptNames, autoClose, packagePath)}`;
 }
 
-function describeFailurePolicy(command: StatusBarCommand): string {
-  return getStatusBarFailurePolicy(command) === 'continue'
-    ? 'continues after failed scripts and reports failure at the end'
-    : 'stops at the first failed script';
-}
-
 function describeRunStatus(runStatus: ReturnType<typeof getStatusBarCommandRunStatus>): string {
   if (runStatus.state === 'running') {
     return 'running';
@@ -317,14 +289,6 @@ function describeRunStatus(runStatus: ReturnType<typeof getStatusBarCommandRunSt
   const exitCode = runStatus.exitCode === undefined ? '' : ` (${describeExitCode(runStatus.exitCode)})`;
 
   return `${runStatus.message ?? 'failed'}${exitCode}`;
-}
-
-function describeLastRun(lastRun: NonNullable<ReturnType<typeof getRunHistory>[number]>): string {
-  const status = lastRun.success ? 'success' : 'failed';
-  const exitCode = lastRun.exitCode === undefined ? '' : `, ${describeExitCode(lastRun.exitCode)}`;
-  const duration = lastRun.durationMs === undefined ? '' : `, ${Math.round(lastRun.durationMs / 100) / 10}s`;
-
-  return `${status}${exitCode}${duration} at ${new Date(lastRun.endedAt).toLocaleString()}`;
 }
 
 function describeExitCode(exitCode: number | null | undefined): string {

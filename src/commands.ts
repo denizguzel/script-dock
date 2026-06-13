@@ -8,32 +8,24 @@ import {
 } from './command-runner';
 import {
   getConfiguredScripts,
-  getRunHistory,
   getStatusBarCommands,
   resetWorkspacePreferences,
-  updateCommandActivity,
   updateScriptListPreference,
   updateStatusBarAlignment,
   updateStatusBarCommands,
   updateStatusBarDisplayMode,
 } from './config';
 import { resolvePackageManager } from './package-manager';
+import { showScriptChainEditor } from './script-chain-editor';
 import { getAllScripts, getFavoriteScripts, getPackageRoots, getVisibleScripts } from './scripts';
-import {
-  createStatusBarCommandKey,
-  getStatusBarCommandScripts,
-  getStatusBarExecutionMode,
-  getStatusBarFailurePolicy,
-} from './status-bar-command';
+import { createStatusBarCommandKey, getStatusBarCommandScripts, getStatusBarExecutionMode } from './status-bar-command';
 import { createTerminalCommand, runTerminalCommand } from './terminal';
 import { ScriptItem } from './tree';
-import type {
-  PackageRoot,
-  ScriptEntry,
-  StatusBarCommand,
-  StatusBarCommandExecutionMode,
-  StatusBarCommandFailurePolicy,
-} from './types';
+import type { PackageRoot, ScriptEntry, StatusBarCommand, StatusBarCommandExecutionMode } from './types';
+
+interface ScriptQuickPickItem extends vscode.QuickPickItem {
+  script: ScriptEntry;
+}
 
 export async function runScript(item?: ScriptItem) {
   const scriptItem = item ?? (await pickScript());
@@ -120,26 +112,15 @@ export async function runStatusBarCommand(command: StatusBarCommand, options: { 
   const packageManager = await resolvePackageManager(packageRoot.fsPath);
   const executionMode = getStatusBarExecutionMode(command);
 
-  await updateCommandActivity({
-    commandKey: createStatusBarCommandKey(command),
-    label: command.label,
-    mode: executionMode,
-    packagePath: packageRoot.packagePath,
-    scriptNames,
-    startedAt: Date.now(),
-  });
-
   if (executionMode === 'background') {
     const result = await runStatusBarCommandInBackground({
       command,
       cwd: packageRoot.fsPath,
       packageManager,
-      packagePath: packageRoot.packagePath,
-      failurePolicy: getStatusBarFailurePolicy(command),
       scriptNames,
     });
 
-    if (!result.success) {
+    if (!result.success && !result.stopped) {
       const selected = await vscode.window.showErrorMessage(
         createFailureMessage(command.label, result.exitCode, result.outputTail),
         'Show Output',
@@ -163,7 +144,6 @@ export async function runStatusBarCommand(command: StatusBarCommand, options: { 
     scriptNames,
     command.autoClose,
     packageRoot.packagePath,
-    getStatusBarFailurePolicy(command),
   );
 
   runTerminalCommand({
@@ -212,7 +192,7 @@ export async function pickAndRunStatusBarCommand() {
   }
 }
 
-export async function createScriptChain() {
+export async function createScriptChain(extensionUri: vscode.Uri) {
   const workspaceFolder = getWorkspaceFolder();
 
   if (!workspaceFolder) {
@@ -226,48 +206,28 @@ export async function createScriptChain() {
     return;
   }
 
-  const selected = await vscode.window.showQuickPick(
-    scripts.map((script) => createScriptQuickPickItem(script)),
-    {
-      canPickMany: true,
-      placeHolder: 'Select package scripts for a status bar chain',
+  const packageScripts = await pickScriptChainPackageScripts(scripts);
+
+  if (!packageScripts) {
+    return;
+  }
+
+  const edits = await showScriptChainEditor({
+    extensionUri,
+    initialChain: {
+      executionMode: 'background',
+      label: '',
+      scriptNames: [],
     },
-  );
-
-  if (!selected || selected.length === 0) {
-    return;
-  }
-
-  const packagePaths = new Set(selected.map((item) => item.script.packageRoot.packagePath));
-
-  if (packagePaths.size > 1) {
-    vscode.window.showWarningMessage('Script chains must run inside a single package root.');
-    return;
-  }
-
-  const label = await vscode.window.showInputBox({
-    placeHolder: 'verify',
-    prompt: 'Name this script chain',
-    value: selected.map((item) => item.script.name).join(' + '),
+    packageScripts,
+    title: 'Create Script Chain',
   });
 
-  if (!label) {
+  if (!edits) {
     return;
   }
 
-  const executionMode = await pickExecutionMode();
-
-  if (!executionMode) {
-    return;
-  }
-
-  const failurePolicy = await pickFailurePolicy();
-
-  if (!failurePolicy) {
-    return;
-  }
-
-  const [first] = selected;
+  const [first] = packageScripts;
 
   if (!first) {
     return;
@@ -276,12 +236,11 @@ export async function createScriptChain() {
   await updateStatusBarCommands([
     ...getStatusBarCommands(),
     {
-      executionMode,
-      icon: executionMode === 'background' ? 'check-all' : 'terminal',
-      label,
-      packagePath: first.script.packageRoot.packagePath,
-      failurePolicy,
-      scripts: selected.map((item) => item.script.name),
+      executionMode: edits.executionMode,
+      icon: edits.executionMode === 'background' ? 'check-all' : 'terminal',
+      label: edits.label,
+      packagePath: first?.packageRoot.packagePath,
+      scripts: edits.scriptNames,
     },
   ]);
 }
@@ -322,39 +281,12 @@ export async function addSuggestedChains() {
     ...getStatusBarCommands(),
     ...selected.map((item) => ({
       executionMode: 'background' as const,
-      failurePolicy: 'stop' as const,
       icon: 'check-all',
       label: item.suggestion.label,
       packagePath: item.suggestion.packagePath,
       scripts: item.suggestion.scripts,
     })),
   ]);
-}
-
-export async function showRunHistory() {
-  const history = getRunHistory();
-
-  if (history.length === 0) {
-    vscode.window.showInformationMessage('No background run history yet.');
-    return;
-  }
-
-  const selected = await vscode.window.showQuickPick(
-    history.map((entry) => {
-      const item = {
-        description: `${entry.success ? 'success' : 'failed'}${entry.exitCode === undefined ? '' : ` (${entry.exitCode})`}`,
-        label: `${entry.label} - ${new Date(entry.endedAt).toLocaleString()}`,
-        entry,
-      };
-
-      return entry.outputTail ? { ...item, detail: entry.outputTail } : item;
-    }),
-    { placeHolder: 'Recent background runs' },
-  );
-
-  if (selected) {
-    showCommandOutput();
-  }
 }
 
 export async function resetWorkspacePreferencesCommand() {
@@ -392,27 +324,72 @@ export async function useExpandedStatusBar() {
   await vscode.commands.executeCommand('setContext', 'scriptDock.statusBarDisplayMode', 'expanded');
 }
 
-export async function updateStatusBarCommandFailurePolicy(
-  commandOrItem: unknown,
-  failurePolicy: StatusBarCommandFailurePolicy,
-) {
-  const command = await resolveEditableStatusBarCommand(commandOrItem);
+export async function editScriptChain(extensionUri: vscode.Uri, commandOrItem?: unknown) {
+  const command = await resolveEditableStatusBarCommand(commandOrItem, { pickStatusBarCommand: true });
 
   if (!command) {
     return;
   }
 
+  const workspaceFolder = getWorkspaceFolder();
+
+  if (!workspaceFolder) {
+    return;
+  }
+
+  const packageRoot = await getPackageRootForCommand(workspaceFolder, command);
+
+  if (!packageRoot) {
+    return;
+  }
+
+  const packageScripts = (await getVisibleScripts(workspaceFolder)).filter(
+    (script) => script.packageRoot.packagePath === packageRoot.packagePath,
+  );
+
+  if (packageScripts.length === 0) {
+    vscode.window.showInformationMessage('No package scripts are available for this package root.');
+    return;
+  }
+
+  const edits = await showScriptChainEditor({
+    extensionUri,
+    initialChain: {
+      executionMode: getStatusBarExecutionMode(command),
+      label: command.label,
+      scriptNames: getStatusBarCommandScripts(command),
+    },
+    packageScripts,
+    title: `Edit Chain: ${command.label}`,
+  });
+
+  if (!edits) {
+    return;
+  }
+
   const commandKey = createStatusBarCommandKey(command);
+  const nextCommand = createEditedStatusBarCommand(command, {
+    executionMode: edits.executionMode,
+    label: edits.label,
+    scriptNames: edits.scriptNames,
+  });
   const nextCommands = getStatusBarCommands().map((item) =>
-    createStatusBarCommandKey(item) === commandKey
-      ? {
-          ...item,
-          failurePolicy,
-        }
-      : item,
+    createStatusBarCommandKey(item) === commandKey ? nextCommand : item,
   );
 
   await updateStatusBarCommands(nextCommands);
+}
+
+export async function stopBackgroundStatusBarCommand(commandOrItem?: unknown) {
+  const command = await resolveEditableStatusBarCommand(commandOrItem, { pickStatusBarCommand: true });
+
+  if (!command) {
+    return;
+  }
+
+  if (!stopStatusBarCommand(command)) {
+    vscode.window.showInformationMessage(`${command.label} is not running.`);
+  }
 }
 
 export async function addStatusBarCommand(item?: ScriptItem) {
@@ -439,7 +416,6 @@ export async function addStatusBarCommand(item?: ScriptItem) {
     ...commands,
     {
       executionMode: 'terminal',
-      failurePolicy: 'stop',
       icon: 'terminal',
       label: scriptItem.scriptName,
       packagePath: scriptItem.packageRoot.packagePath,
@@ -610,6 +586,31 @@ async function pickScript(
   });
 }
 
+async function pickScriptChainPackageScripts(scripts: ScriptEntry[]): Promise<ScriptEntry[] | undefined> {
+  const scriptsByPackagePath = new Map<string, ScriptEntry[]>();
+
+  for (const script of scripts) {
+    const packageScripts = scriptsByPackagePath.get(script.packageRoot.packagePath) ?? [];
+    packageScripts.push(script);
+    scriptsByPackagePath.set(script.packageRoot.packagePath, packageScripts);
+  }
+
+  if (scriptsByPackagePath.size === 1) {
+    return scripts;
+  }
+
+  const selected = await vscode.window.showQuickPick(
+    [...scriptsByPackagePath.entries()].map(([packagePath, packageScripts]) => ({
+      description: `${packageScripts.length} scripts`,
+      label: formatPackagePath(packagePath),
+      packageScripts,
+    })),
+    { placeHolder: 'Select the package root for this script chain' },
+  );
+
+  return selected?.packageScripts;
+}
+
 async function getPackageRootForCommand(
   workspaceFolder: vscode.WorkspaceFolder,
   command: StatusBarCommand,
@@ -626,47 +627,7 @@ async function getPackageRootForCommand(
   return packageRoot;
 }
 
-async function pickExecutionMode(): Promise<StatusBarCommandExecutionMode | undefined> {
-  const selected = await vscode.window.showQuickPick(
-    [
-      {
-        description: 'Runs in Output Channel with spinner/check/error feedback',
-        label: 'Background',
-        mode: 'background' as const,
-      },
-      {
-        description: 'Opens a VS Code terminal',
-        label: 'Terminal',
-        mode: 'terminal' as const,
-      },
-    ],
-    { placeHolder: 'Choose how this script should run' },
-  );
-
-  return selected?.mode;
-}
-
-async function pickFailurePolicy(): Promise<StatusBarCommandFailurePolicy | undefined> {
-  const selected = await vscode.window.showQuickPick(
-    [
-      {
-        description: 'Stops the chain as soon as one script fails',
-        label: 'Stop on failure',
-        policy: 'stop' as const,
-      },
-      {
-        description: 'Runs the rest of the chain, then reports the script as failed',
-        label: 'Continue after failures',
-        policy: 'continue' as const,
-      },
-    ],
-    { placeHolder: 'Choose how this chain handles failed scripts' },
-  );
-
-  return selected?.policy;
-}
-
-function createScriptQuickPickItem(script: ScriptEntry) {
+function createScriptQuickPickItem(script: ScriptEntry): ScriptQuickPickItem {
   return {
     description:
       script.packageRoot.packagePath === '.' ? script.command : `${script.packageRoot.packagePath} - ${script.command}`,
@@ -792,6 +753,45 @@ function createChainKey(packagePath: string, scriptNames: string[]): string {
   return `${packagePath}:${scriptNames.join('&&')}`;
 }
 
+function createEditedStatusBarCommand(
+  command: StatusBarCommand,
+  edits: {
+    executionMode: StatusBarCommandExecutionMode;
+    label: string;
+    scriptNames: string[];
+  },
+): StatusBarCommand {
+  const commandWithoutScripts = { ...command };
+  delete commandWithoutScripts.script;
+  delete commandWithoutScripts.scripts;
+
+  return {
+    ...commandWithoutScripts,
+    executionMode: edits.executionMode,
+    icon: getEditedIcon(command, edits.executionMode),
+    label: edits.label,
+    ...createStatusBarCommandScriptFields(edits.scriptNames),
+  };
+}
+
+function createStatusBarCommandScriptFields(scriptNames: string[]): Pick<StatusBarCommand, 'script' | 'scripts'> {
+  const [scriptName] = scriptNames;
+
+  if (scriptNames.length === 1 && scriptName !== undefined) {
+    return { script: scriptName };
+  }
+
+  return { scripts: scriptNames };
+}
+
+function getEditedIcon(command: StatusBarCommand, executionMode: StatusBarCommandExecutionMode): string {
+  if (command.icon && !['check-all', 'server-process', 'terminal'].includes(command.icon)) {
+    return command.icon;
+  }
+
+  return executionMode === 'background' ? 'check-all' : 'terminal';
+}
+
 function createFailureMessage(
   label: string,
   exitCode: number | null | undefined,
@@ -807,13 +807,20 @@ function getCommandPackagePath(command: StatusBarCommand): string {
   return command.packagePath ?? '.';
 }
 
-async function resolveEditableStatusBarCommand(commandOrItem: unknown): Promise<StatusBarCommand | undefined> {
+async function resolveEditableStatusBarCommand(
+  commandOrItem: unknown,
+  options: { pickStatusBarCommand?: boolean } = {},
+): Promise<StatusBarCommand | undefined> {
   if (isStatusBarCommandTreeItem(commandOrItem)) {
     return commandOrItem.statusBarCommand;
   }
 
   if (isStatusBarCommand(commandOrItem)) {
     return commandOrItem;
+  }
+
+  if (commandOrItem === undefined && options.pickStatusBarCommand) {
+    return pickStatusBarCommand();
   }
 
   const scriptItem = commandOrItem instanceof ScriptItem ? commandOrItem : await pickScript();
@@ -837,6 +844,27 @@ async function resolveEditableStatusBarCommand(commandOrItem: unknown): Promise<
   }
 
   return command;
+}
+
+async function pickStatusBarCommand(): Promise<StatusBarCommand | undefined> {
+  const commands = getStatusBarCommands();
+
+  if (commands.length === 0) {
+    vscode.window.showInformationMessage('No status bar scripts are configured.');
+    return undefined;
+  }
+
+  const selected = await vscode.window.showQuickPick(
+    commands.map((command) => ({
+      description: getStatusBarCommandScripts(command).join(' + '),
+      detail: formatPackagePath(getCommandPackagePath(command)),
+      label: command.label,
+      command,
+    })),
+    { placeHolder: 'Select a status bar script' },
+  );
+
+  return selected?.command;
 }
 
 function isStatusBarCommandTreeItem(value: unknown): value is { statusBarCommand: StatusBarCommand } {

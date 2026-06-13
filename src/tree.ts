@@ -1,12 +1,11 @@
 import * as vscode from 'vscode';
 import { getStatusBarCommandRunStatus } from './command-runner';
 import {
-  getCommandActivity,
   getCollapsedTreeGroups,
   getConfiguredScripts,
-  getRunHistory,
   getStatusBarCommands,
   updateCollapsedTreeGroups,
+  updateScriptListPreference,
   updateStatusBarCommands,
 } from './config';
 import {
@@ -16,20 +15,67 @@ import {
   getScriptsForPackageRoots,
   getVisibleScriptsFromScripts,
 } from './scripts';
-import {
-  createStatusBarCommandKey,
-  getStatusBarCommandScripts,
-  getStatusBarExecutionMode,
-  getStatusBarFailurePolicy,
-} from './status-bar-command';
+import { createStatusBarCommandKey, getStatusBarCommandScripts, getStatusBarExecutionMode } from './status-bar-command';
 import type { PackageRoot, ScriptEntry, StatusBarCommand, StatusBarCommandExecutionMode } from './types';
 
 const statusBarGroupId = 'statusBar';
 const favoriteGroupId = 'favorites';
 const allScriptsGroupId = 'all';
 const statusBarCommandMime = 'application/vnd.code.tree.scriptdock.statusbarcommand';
+const favoriteScriptMime = 'application/vnd.code.tree.scriptdock.favoritescript';
 
-type ScriptTreeItem = ScriptGroupItem | ScriptItem | StatusBarCommandItem;
+type ScriptTreeItem = LoadingItem | EmptyStateItem | ScriptGroupItem | ScriptItem | StatusBarCommandItem;
+type ReorderItem = StatusBarCommand | string;
+
+interface ReorderSpec {
+  canDrag: (item: ScriptTreeItem) => boolean;
+  canDrop: (target: ScriptTreeItem | undefined) => boolean;
+  getItemKey: (item: ReorderItem) => string;
+  getItems: () => ReorderItem[];
+  getKey: (item: ScriptTreeItem) => string;
+  getSourceIndex: (item: ScriptTreeItem, items: ReorderItem[]) => number;
+  getTargetIndex: (target: ScriptTreeItem | undefined, items: ReorderItem[]) => number;
+  mimeType: string;
+  updateItems: (items: ReorderItem[]) => Promise<void>;
+}
+
+class LoadingItem extends vscode.TreeItem {
+  constructor() {
+    super('Loading workspace scripts...', vscode.TreeItemCollapsibleState.None);
+
+    this.contextValue = 'loading';
+    this.id = 'loading';
+    this.iconPath = new vscode.ThemeIcon('sync~spin');
+  }
+}
+
+class EmptyStateItem extends vscode.TreeItem {
+  constructor(
+    id: string,
+    label: string,
+    options: {
+      command?: vscode.Command;
+      description?: string;
+      icon: string;
+      tooltip: string;
+    },
+  ) {
+    super(label, vscode.TreeItemCollapsibleState.None);
+
+    this.contextValue = 'emptyState';
+    this.id = `empty:${id}`;
+    this.iconPath = new vscode.ThemeIcon(options.icon);
+    this.tooltip = options.tooltip;
+
+    if (options.command) {
+      this.command = options.command;
+    }
+
+    if (options.description) {
+      this.description = options.description;
+    }
+  }
+}
 
 class ScriptGroupItem extends vscode.TreeItem {
   constructor(
@@ -95,16 +141,13 @@ class StatusBarCommandItem extends vscode.TreeItem {
     super(statusBarCommand.label, vscode.TreeItemCollapsibleState.None);
 
     const scriptNames = getStatusBarCommandScripts(statusBarCommand);
-    const health = getStatusBarCommandHealth(statusBarCommand);
+    const runState = getStatusBarCommandRunState(statusBarCommand);
     const missingScripts = getMissingStatusBarScripts(statusBarCommand, allScripts);
 
     this.contextValue = createStatusBarCommandContextValue(statusBarCommand, missingScripts);
-    this.description =
-      missingScripts.length > 0
-        ? `missing: ${missingScripts.join(', ')}`
-        : `${health.shortLabel} - ${scriptNames.join(' + ')}`;
+    this.description = createStatusBarCommandDescription(scriptNames, missingScripts);
     this.id = createTreeItemId('status-bar-command', createStatusBarCommandKey(statusBarCommand));
-    this.tooltip = createStatusBarCommandTooltip(statusBarCommand, scriptNames, health.detail, missingScripts);
+    this.tooltip = createStatusBarCommandTooltip(statusBarCommand, scriptNames, runState.detail, missingScripts);
     this.iconPath = new vscode.ThemeIcon(
       missingScripts.length > 0 ? 'warning' : getStatusBarCommandIcon(statusBarCommand),
     );
@@ -118,11 +161,42 @@ class StatusBarCommandItem extends vscode.TreeItem {
 
 export class ScriptsProvider implements vscode.TreeDataProvider<ScriptTreeItem> {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<ScriptTreeItem | undefined | void>();
+  private allScripts: ScriptEntry[] = [];
+  private isLoading = true;
+  private packageRoots: PackageRoot[] = [];
+  private scripts: ScriptEntry[] = [];
+  private updateId = 0;
 
   readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
   refresh() {
     this.onDidChangeTreeDataEmitter.fire();
+  }
+
+  refreshFromPreferences() {
+    this.scripts = getVisibleScriptsFromScripts(this.allScripts);
+    this.refresh();
+  }
+
+  async reload() {
+    const updateId = ++this.updateId;
+
+    this.isLoading = true;
+    this.refresh();
+
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    const packageRoots = workspaceFolder ? await getPackageRoots(workspaceFolder) : [];
+    const allScripts = await getScriptsForPackageRoots(packageRoots);
+
+    if (updateId !== this.updateId) {
+      return;
+    }
+
+    this.packageRoots = packageRoots;
+    this.allScripts = allScripts;
+    this.scripts = getVisibleScriptsFromScripts(allScripts);
+    this.isLoading = false;
+    this.refresh();
   }
 
   getTreeItem(element: ScriptTreeItem): vscode.TreeItem {
@@ -145,30 +219,44 @@ export class ScriptsProvider implements vscode.TreeDataProvider<ScriptTreeItem> 
     await updateCollapsedTreeGroups(getCollapsedTreeGroups().filter((groupId) => groupId !== element.groupId));
   }
 
-  async getChildren(element?: ScriptTreeItem): Promise<ScriptTreeItem[]> {
+  getChildren(element?: ScriptTreeItem): ScriptTreeItem[] {
+    if (this.isLoading) {
+      return element ? [] : [new LoadingItem()];
+    }
+
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 
     if (!workspaceFolder) {
-      return [];
+      return element ? [] : [createNoWorkspaceItem()];
     }
 
-    const packageRoots = await getPackageRoots(workspaceFolder);
-    const allScripts = await getScriptsForPackageRoots(packageRoots);
-    const scripts = getVisibleScriptsFromScripts(allScripts);
+    if (this.packageRoots.length === 0) {
+      return element ? [] : [createNoPackageJsonItem()];
+    }
+
+    if (this.allScripts.length === 0) {
+      return element ? [] : [createNoScriptsItem()];
+    }
+
+    if (this.scripts.length === 0) {
+      return element ? [] : [createAllScriptsHiddenItem()];
+    }
 
     if (element instanceof ScriptGroupItem) {
       if (element.groupId === statusBarGroupId) {
-        return getStatusBarCommands().map((command, index) => new StatusBarCommandItem(command, index, allScripts));
+        return getStatusBarCommands().map(
+          (command, index) => new StatusBarCommandItem(command, index, this.allScripts),
+        );
       }
 
       if (element.packageRoot) {
-        return getNonFavoriteScripts(scripts)
+        return getNonFavoriteScripts(this.scripts)
           .filter((script) => script.packageRoot.packagePath === element.packageRoot?.packagePath)
           .map((script) => createScriptItem(script));
       }
 
       const groupScripts =
-        element.groupId === favoriteGroupId ? getFavoriteScripts(scripts) : getNonFavoriteScripts(scripts);
+        element.groupId === favoriteGroupId ? getFavoriteScripts(this.scripts) : getNonFavoriteScripts(this.scripts);
 
       return groupScripts.map((script) => createScriptItem(script));
     }
@@ -179,13 +267,13 @@ export class ScriptsProvider implements vscode.TreeDataProvider<ScriptTreeItem> 
       groups.push(new ScriptGroupItem(statusBarGroupId, 'Pinned Scripts'));
     }
 
-    if (getFavoriteScripts(scripts).length > 0) {
+    if (getFavoriteScripts(this.scripts).length > 0) {
       groups.push(new ScriptGroupItem(favoriteGroupId, 'Favorites'));
     }
 
-    if (getNonFavoriteScripts(scripts).length > 0) {
+    if (getNonFavoriteScripts(this.scripts).length > 0) {
       const packageRoots = new Map(
-        getNonFavoriteScripts(scripts).map((script) => [script.packageRoot.packagePath, script.packageRoot]),
+        getNonFavoriteScripts(this.scripts).map((script) => [script.packageRoot.packagePath, script.packageRoot]),
       );
 
       if (packageRoots.size > 1) {
@@ -204,49 +292,92 @@ export class ScriptsProvider implements vscode.TreeDataProvider<ScriptTreeItem> 
 }
 
 export class ScriptsDragAndDropController implements vscode.TreeDragAndDropController<ScriptTreeItem> {
-  readonly dragMimeTypes = [statusBarCommandMime];
-  readonly dropMimeTypes = [statusBarCommandMime];
+  private readonly reorderSpecs: ReorderSpec[] = [
+    {
+      canDrag: (item) => item instanceof StatusBarCommandItem,
+      canDrop: (target) =>
+        target === undefined ||
+        target instanceof StatusBarCommandItem ||
+        (target instanceof ScriptGroupItem && target.groupId === statusBarGroupId),
+      getItems: getStatusBarCommands,
+      getItemKey: (item) => (isStatusBarCommand(item) ? createStatusBarCommandKey(item) : ''),
+      getKey: (item) => (item instanceof StatusBarCommandItem ? createStatusBarCommandKey(item.statusBarCommand) : ''),
+      getSourceIndex: (item) => (item instanceof StatusBarCommandItem ? item.index : -1),
+      getTargetIndex: (target, items) => (target instanceof StatusBarCommandItem ? target.index : items.length),
+      mimeType: statusBarCommandMime,
+      updateItems: (items) => updateStatusBarCommands(items.filter(isStatusBarCommand)),
+    },
+    {
+      canDrag: (item) => item instanceof ScriptItem && getConfiguredScripts('favoriteScripts').includes(item.scriptId),
+      canDrop: (target) =>
+        target === undefined ||
+        (target instanceof ScriptItem && getConfiguredScripts('favoriteScripts').includes(target.scriptId)) ||
+        (target instanceof ScriptGroupItem && target.groupId === favoriteGroupId),
+      getItems: () => getConfiguredScripts('favoriteScripts'),
+      getItemKey: (item) => (typeof item === 'string' ? item : ''),
+      getKey: (item) => (item instanceof ScriptItem ? item.scriptId : ''),
+      getSourceIndex: (item, items) => (item instanceof ScriptItem ? items.indexOf(item.scriptId) : -1),
+      getTargetIndex: (target, items) => (target instanceof ScriptItem ? items.indexOf(target.scriptId) : items.length),
+      mimeType: favoriteScriptMime,
+      updateItems: (items) => updateScriptListPreference('favoriteScripts', items.filter(isString)),
+    },
+  ];
+
+  readonly dragMimeTypes = this.reorderSpecs.map((spec) => spec.mimeType);
+  readonly dropMimeTypes = this.dragMimeTypes;
 
   handleDrag(source: readonly ScriptTreeItem[], dataTransfer: vscode.DataTransfer) {
     const [item] = source;
 
-    if (!(item instanceof StatusBarCommandItem)) {
+    if (!item) {
       return;
     }
 
-    dataTransfer.set(
-      statusBarCommandMime,
-      new vscode.DataTransferItem({
-        index: item.index,
-        key: createStatusBarCommandKey(item.statusBarCommand),
-      }),
-    );
+    for (const spec of this.reorderSpecs) {
+      if (!spec.canDrag(item)) {
+        continue;
+      }
+
+      const items = spec.getItems();
+      const payload = {
+        index: spec.getSourceIndex(item, items),
+        key: spec.getKey(item),
+      };
+
+      if (payload.index === -1 || payload.key === '') {
+        continue;
+      }
+
+      dataTransfer.set(spec.mimeType, new vscode.DataTransferItem(payload));
+      return;
+    }
   }
 
   async handleDrop(target: ScriptTreeItem | undefined, dataTransfer: vscode.DataTransfer) {
-    const item = dataTransfer.get(statusBarCommandMime);
+    for (const spec of this.reorderSpecs) {
+      const item = dataTransfer.get(spec.mimeType);
 
-    if (!item || (!isStatusBarDropTarget(target) && target !== undefined)) {
+      if (!item || !spec.canDrop(target)) {
+        continue;
+      }
+
+      const payload = await readDragPayload(item);
+
+      if (!payload) {
+        continue;
+      }
+
+      const items = spec.getItems();
+      const sourceIndex = findItemIndex(items, payload, spec.getItemKey);
+      const targetIndex = spec.getTargetIndex(target, items);
+
+      if (sourceIndex === -1 || targetIndex === -1) {
+        continue;
+      }
+
+      await spec.updateItems(moveArrayItem(items, sourceIndex, targetIndex));
       return;
     }
-
-    const payload = await readDragPayload(item);
-
-    if (!payload) {
-      return;
-    }
-
-    const commands = getStatusBarCommands();
-    const sourceIndex = findCommandIndex(commands, payload);
-
-    if (sourceIndex === -1) {
-      return;
-    }
-
-    const targetIndex = target instanceof StatusBarCommandItem ? target.index : commands.length;
-    const nextCommands = moveArrayItem(commands, sourceIndex, targetIndex);
-
-    await updateStatusBarCommands(nextCommands);
   }
 }
 
@@ -265,6 +396,49 @@ function createScriptItem(script: ScriptEntry): ScriptItem {
   return new ScriptItem(script, {
     ...options,
     statusBarExecutionMode: getStatusBarExecutionMode(statusBarCommand),
+  });
+}
+
+function createNoWorkspaceItem(): EmptyStateItem {
+  return new EmptyStateItem('no-workspace', 'Open a workspace folder to use Script Dock.', {
+    icon: 'folder-opened',
+    tooltip: 'Script Dock scans package.json files in the open workspace.',
+  });
+}
+
+function createNoPackageJsonItem(): EmptyStateItem {
+  return new EmptyStateItem('no-package-json', 'No package.json found in this workspace.', {
+    command: {
+      command: 'scriptDock.refreshScripts',
+      title: 'Refresh Scripts',
+    },
+    description: 'click to refresh',
+    icon: 'warning',
+    tooltip: 'Click to scan the workspace again.',
+  });
+}
+
+function createNoScriptsItem(): EmptyStateItem {
+  return new EmptyStateItem('no-scripts', 'No package scripts found.', {
+    command: {
+      command: 'scriptDock.refreshScripts',
+      title: 'Refresh Scripts',
+    },
+    description: 'click to refresh',
+    icon: 'info',
+    tooltip: 'Add a scripts section to package.json, then refresh Script Dock.',
+  });
+}
+
+function createAllScriptsHiddenItem(): EmptyStateItem {
+  return new EmptyStateItem('all-hidden', 'All package scripts are hidden.', {
+    command: {
+      command: 'scriptDock.showHiddenScript',
+      title: 'Show Hidden Script',
+    },
+    description: 'click to show one',
+    icon: 'eye-closed',
+    tooltip: 'Click to choose a hidden script to show again.',
   });
 }
 
@@ -295,25 +469,40 @@ function formatPackagePath(packagePath?: string): string {
 }
 
 function getStatusBarCommandIcon(command: StatusBarCommand): string {
+  const runStatus = getStatusBarCommandRunStatus(command);
+
+  if (runStatus.state === 'running') {
+    return 'sync~spin';
+  }
+
+  if (runStatus.state === 'failed') {
+    return 'error';
+  }
+
+  if (runStatus.state === 'success') {
+    return 'check';
+  }
+
   return command.icon ?? (getStatusBarExecutionMode(command) === 'background' ? 'server-process' : 'terminal');
 }
 
 function createStatusBarCommandTooltip(
   command: StatusBarCommand,
   scriptNames: string[],
-  health: string,
+  runStateDetail: string | undefined,
   missingScripts: string[],
 ): string {
   const lines = [
     `Status bar script: ${command.label}`,
     `Runs: ${scriptNames.join(' + ')}`,
     `Mode: ${describeStatusBarCommandMode(command)}`,
-    health,
     `Package: ${formatPackagePath(command.packagePath)}`,
   ];
 
   if (missingScripts.length > 0) {
     lines.splice(3, 0, `Missing: ${missingScripts.join(', ')}`);
+  } else if (runStateDetail) {
+    lines.splice(3, 0, runStateDetail);
   }
 
   return lines.join('\n');
@@ -324,57 +513,36 @@ function describeStatusBarCommandMode(command: StatusBarCommand): string {
 }
 
 function createStatusBarCommandContextValue(command: StatusBarCommand, missingScripts: string[]): string {
-  const failurePolicy = getStatusBarFailurePolicy(command) === 'continue' ? 'continueOnFailure' : 'stopOnFailure';
   const missingState = missingScripts.length > 0 ? 'missingScript' : 'validScript';
+  const runState = getStatusBarCommandRunStatus(command).state;
 
-  return `statusBarCommand ${failurePolicy} ${missingState}`;
+  return `statusBarCommand ${missingState} ${runState}`;
 }
 
-function getStatusBarCommandHealth(command: StatusBarCommand): { detail: string; shortLabel: string } {
+function createStatusBarCommandDescription(scriptNames: string[], missingScripts: string[]): string {
+  if (missingScripts.length > 0) {
+    return `missing: ${missingScripts.join(', ')}`;
+  }
+
+  return scriptNames.join(' + ');
+}
+
+function getStatusBarCommandRunState(command: StatusBarCommand): { detail?: string } {
   const runStatus = getStatusBarCommandRunStatus(command);
 
   if (runStatus.state === 'running') {
-    return { detail: 'Currently running', shortLabel: 'running' };
+    return { detail: 'Currently running' };
   }
 
   if (runStatus.state === 'failed') {
-    return { detail: 'Current background run failed', shortLabel: 'failed' };
+    return { detail: 'Current background run failed' };
   }
 
   if (runStatus.state === 'success') {
-    return { detail: 'Current background run finished successfully', shortLabel: 'ok now' };
+    return { detail: 'Current background run finished successfully' };
   }
 
-  const lastRun = getRunHistory().find((entry) => entry.commandKey === createStatusBarCommandKey(command));
-
-  if (lastRun?.success) {
-    return { detail: 'Last background run: successful', shortLabel: 'last ok' };
-  }
-
-  if (lastRun) {
-    return { detail: 'Last background run: failed', shortLabel: 'last failed' };
-  }
-
-  const activity = getCommandActivity().find((entry) => entry.commandKey === createStatusBarCommandKey(command));
-
-  if (activity?.mode === 'terminal') {
-    return { detail: 'Opened in terminal; result is not tracked', shortLabel: 'terminal' };
-  }
-
-  if (activity) {
-    return { detail: 'Started in background', shortLabel: 'started' };
-  }
-
-  return {
-    detail: 'No background run recorded yet',
-    shortLabel: 'not run',
-  };
-}
-
-function isStatusBarDropTarget(target: ScriptTreeItem | undefined): boolean {
-  return (
-    target instanceof StatusBarCommandItem || (target instanceof ScriptGroupItem && target.groupId === statusBarGroupId)
-  );
+  return {};
 }
 
 async function readDragPayload(item: vscode.DataTransferItem): Promise<{ index: number; key: string } | undefined> {
@@ -404,14 +572,18 @@ function isDragPayload(value: unknown): value is { index: number; key: string } 
   );
 }
 
-function findCommandIndex(commands: StatusBarCommand[], payload: { index: number; key: string }): number {
-  const command = commands[payload.index];
+function findItemIndex(
+  items: ReorderItem[],
+  payload: { index: number; key: string },
+  getItemKey: (item: ReorderItem) => string,
+): number {
+  const item = items[payload.index];
 
-  if (command && createStatusBarCommandKey(command) === payload.key) {
+  if (item && getItemKey(item) === payload.key) {
     return payload.index;
   }
 
-  return commands.findIndex((item) => createStatusBarCommandKey(item) === payload.key);
+  return items.findIndex((itemToCheck) => getItemKey(itemToCheck) === payload.key);
 }
 
 function moveArrayItem<T>(items: T[], sourceIndex: number, targetIndex: number): T[] {
@@ -446,6 +618,14 @@ function getMissingStatusBarScripts(command: StatusBarCommand, allScripts: Scrip
     (scriptName) =>
       !allScripts.some((script) => script.name === scriptName && script.packageRoot.packagePath === packagePath),
   );
+}
+
+function isStatusBarCommand(value: ReorderItem): value is StatusBarCommand {
+  return typeof value === 'object' && value !== null && 'label' in value && typeof value.label === 'string';
+}
+
+function isString(value: ReorderItem): value is string {
+  return typeof value === 'string';
 }
 
 function createScriptContextValue(options: {
