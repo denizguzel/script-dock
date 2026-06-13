@@ -57,9 +57,20 @@ export async function runStatusBarCommand(command: StatusBarCommand, options: { 
   }
 
   const scriptNames = getStatusBarCommandScripts(command);
+  const runStatus = getStatusBarCommandRunStatus(command);
 
   if (scriptNames.length === 0) {
     vscode.window.showWarningMessage(`Status bar script "${command.label}" has no scripts configured.`);
+    return;
+  }
+
+  if (!options.forceRun && runStatus.state === 'running') {
+    stopStatusBarCommand(command);
+    return;
+  }
+
+  if (!options.forceRun && runStatus.state === 'failed') {
+    await runStatusBarCommand(command, { forceRun: true });
     return;
   }
 
@@ -81,31 +92,6 @@ export async function runStatusBarCommand(command: StatusBarCommand, options: { 
     vscode.window.showWarningMessage(
       `Missing package script${missingScripts.length > 1 ? 's' : ''}: ${missingScripts.join(', ')}`,
     );
-    return;
-  }
-
-  const runStatus = getStatusBarCommandRunStatus(command);
-
-  if (!options.forceRun && runStatus.state === 'running') {
-    const selected = await vscode.window.showInformationMessage(`${command.label} is running.`, 'Show Output', 'Stop');
-
-    if (selected === 'Stop') {
-      stopStatusBarCommand(command);
-    } else {
-      showCommandOutput();
-    }
-
-    return;
-  }
-
-  if (!options.forceRun && runStatus.state === 'failed') {
-    showCommandOutput();
-    const selected = await vscode.window.showWarningMessage(`${command.label} failed.`, 'Run Again');
-
-    if (selected === 'Run Again') {
-      await runStatusBarCommand(command, { forceRun: true });
-    }
-
     return;
   }
 

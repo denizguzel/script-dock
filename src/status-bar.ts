@@ -68,7 +68,10 @@ export class StatusBarController implements vscode.Disposable {
       item.tooltip = createStatusBarTooltip(command, packageManager);
       item.command = {
         command: 'scriptDock.runStatusBarCommand',
-        title: 'Run Status Bar Script',
+        title:
+          getStatusBarCommandRunStatus(command).state === 'running'
+            ? 'Cancel Status Bar Script'
+            : 'Run Status Bar Script',
         arguments: [command],
       };
       item.show();
@@ -114,6 +117,10 @@ function createOverflowStatusBarText(commands: StatusBarCommand[]): string {
     return `$(error) ${commands.length} more`;
   }
 
+  if (commands.some((command) => getStatusBarCommandRunStatus(command).state === 'cancelled')) {
+    return `$(circle-slash) ${commands.length} more`;
+  }
+
   return `$(more) ${commands.length} more`;
 }
 
@@ -135,6 +142,10 @@ function createCompactStatusBarText(commands: StatusBarCommand[]): string {
 
   if (commands.some((command) => getStatusBarCommandRunStatus(command).state === 'failed')) {
     return '$(error) Script Dock';
+  }
+
+  if (commands.some((command) => getStatusBarCommandRunStatus(command).state === 'cancelled')) {
+    return '$(circle-slash) Script Dock';
   }
 
   return '$(terminal) Script Dock';
@@ -199,6 +210,7 @@ function createStatusBarTooltip(
     tooltip.appendMarkdown(`Status: ${describeRunStatus(runStatus)}\n\n`);
   }
 
+  tooltip.appendMarkdown(`Action: ${describeClickAction(runStatus)}\n\n`);
   tooltip.appendMarkdown(`Package: \`${formatPackagePath(command.packagePath)}\`\n\n`);
   tooltip.appendMarkdown(`Terminal: \`${terminalCommand}\``);
 
@@ -242,6 +254,10 @@ function getStatusBarIcon(command: StatusBarCommand, scriptNames: string[]): str
     return '$(check) ';
   }
 
+  if (runStatus.state === 'cancelled') {
+    return '$(circle-slash) ';
+  }
+
   if (runStatus.state === 'failed') {
     return '$(error) ';
   }
@@ -277,13 +293,29 @@ function describeExecutionMode(
   return `opens a terminal and ${describesTerminalLifecycle(scriptNames, autoClose, packagePath)}`;
 }
 
+function describeClickAction(runStatus: ReturnType<typeof getStatusBarCommandRunStatus>): string {
+  if (runStatus.state === 'running') {
+    return 'Click to cancel.';
+  }
+
+  if (runStatus.state === 'failed') {
+    return 'Click to rerun.';
+  }
+
+  return 'Click to run.';
+}
+
 function describeRunStatus(runStatus: ReturnType<typeof getStatusBarCommandRunStatus>): string {
   if (runStatus.state === 'running') {
-    return 'running';
+    return runStatus.message ?? 'running';
   }
 
   if (runStatus.state === 'success') {
     return 'finished successfully';
+  }
+
+  if (runStatus.state === 'cancelled') {
+    return runStatus.message ?? 'cancelled';
   }
 
   const exitCode = runStatus.exitCode === undefined ? '' : ` (${describeExitCode(runStatus.exitCode)})`;

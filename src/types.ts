@@ -8,7 +8,7 @@ export type ResolvedPackageManager = Exclude<PackageManager, 'auto'>;
 export type StatusBarAlignmentPreference = 'left' | 'right';
 export type StatusBarCommandExecutionMode = 'background' | 'terminal';
 export type StatusBarDisplayMode = 'compact' | 'expanded';
-type StatusBarCommandRunState = 'failed' | 'idle' | 'running' | 'success';
+type StatusBarCommandRunState = 'cancelled' | 'failed' | 'idle' | 'running' | 'success';
 
 export interface PackageRoot {
   fsPath: string;

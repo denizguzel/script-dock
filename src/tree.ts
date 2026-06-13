@@ -479,6 +479,10 @@ function getStatusBarCommandIcon(command: StatusBarCommand): string {
     return 'error';
   }
 
+  if (runStatus.state === 'cancelled') {
+    return 'circle-slash';
+  }
+
   if (runStatus.state === 'success') {
     return 'check';
   }
@@ -536,6 +540,10 @@ function getStatusBarCommandRunState(command: StatusBarCommand): { detail?: stri
 
   if (runStatus.state === 'failed') {
     return { detail: 'Current background run failed' };
+  }
+
+  if (runStatus.state === 'cancelled') {
+    return { detail: 'Current background run cancelled' };
   }
 
   if (runStatus.state === 'success') {
