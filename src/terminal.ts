@@ -1,17 +1,15 @@
 import * as vscode from 'vscode';
 import { getConfiguredScripts } from './config';
 import { createScriptId } from './scripts';
-import type { ResolvedPackageManager, StatusBarCommandFailurePolicy } from './types';
+import type { ResolvedPackageManager } from './types';
 
 export function createTerminalCommand(
   packageManager: ResolvedPackageManager,
   scriptNames: string[],
   autoClose?: boolean,
   packagePath = '.',
-  failurePolicy: StatusBarCommandFailurePolicy = 'stop',
 ): string {
-  const separator = failurePolicy === 'continue' ? ' ; ' : ' && ';
-  const runCommand = scriptNames.map((scriptName) => createRunCommand(packageManager, scriptName)).join(separator);
+  const runCommand = scriptNames.map((scriptName) => createRunCommand(packageManager, scriptName)).join(' && ');
   const shouldAutoClose =
     autoClose ??
     scriptNames.every((scriptName) =>

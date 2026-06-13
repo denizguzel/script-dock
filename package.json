@@ -15,7 +15,9 @@
   "type": "commonjs",
   "main": "./dist/extension.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "bun run build:extension && bun run build:webviews",
+    "build:extension": "tsc -p tsconfig.json",
+    "build:webviews": "vite build --config vite.webviews.config.ts",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "knip": "knip",
@@ -23,17 +25,26 @@
     "lint:fix": "oxlint --fix && bun run format",
     "package:check": "bun run format && bun run lint && bun run build",
     "package:vsix": "bun run package:check && vsce package --out script-dock.vsix",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p webviews/tsconfig.json",
     "watch": "tsc --watch -p tsconfig.json"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "4.3.1",
     "@types/node": "25.9.3",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
     "@types/vscode": "1.120.0",
+    "@vitejs/plugin-react": "6.0.2",
     "@vscode/vsce": "3.9.2",
     "knip": "6.16.1",
+    "lucide-react": "1.18.0",
     "oxfmt": "0.54.0",
     "oxlint": "1.69.0",
-    "typescript": "6.0.3"
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "tailwindcss": "4.3.1",
+    "typescript": "6.0.3",
+    "vite": "8.0.16"
   },
   "contributes": {
     "commands": [
@@ -63,14 +74,19 @@
         "icon": "$(combine)"
       },
       {
+        "command": "scriptDock.editScriptChain",
+        "title": "Edit Script Chain",
+        "icon": "$(edit)"
+      },
+      {
         "command": "scriptDock.addSuggestedChains",
         "title": "Add Suggested Chains",
         "icon": "$(lightbulb)"
       },
       {
-        "command": "scriptDock.showRunHistory",
-        "title": "Show Run History",
-        "icon": "$(history)"
+        "command": "scriptDock.stopBackgroundStatusBarCommand",
+        "title": "Stop Background Run",
+        "icon": "$(debug-stop)"
       },
       {
         "command": "scriptDock.resetWorkspacePreferences",
@@ -111,16 +127,6 @@
         "command": "scriptDock.runStatusBarCommandInTerminal",
         "title": "Run in Terminal",
         "icon": "$(terminal-cmd)"
-      },
-      {
-        "command": "scriptDock.stopChainOnFailure",
-        "title": "Stop Chain on Failure",
-        "icon": "$(debug-step-out)"
-      },
-      {
-        "command": "scriptDock.continueChainOnFailure",
-        "title": "Continue Chain after Failures",
-        "icon": "$(debug-step-over)"
       },
       {
         "command": "scriptDock.moveStatusBarCommandsLeft",
@@ -181,23 +187,6 @@
         }
       ]
     },
-    "viewsWelcome": [
-      {
-        "view": "scriptDock.scripts",
-        "contents": "No package.json found in this workspace.\n[Refresh Scripts](command:scriptDock.refreshScripts)",
-        "when": "scriptDock.hasPackageJson == false"
-      },
-      {
-        "view": "scriptDock.scripts",
-        "contents": "No package scripts found. Add a scripts section to package.json, then refresh.\n[Refresh Scripts](command:scriptDock.refreshScripts)",
-        "when": "scriptDock.hasPackageJson == true && scriptDock.hasPackageScripts == false"
-      },
-      {
-        "view": "scriptDock.scripts",
-        "contents": "All package scripts are hidden.\n[Show Hidden Script](command:scriptDock.showHiddenScript)",
-        "when": "scriptDock.hasPackageScripts == true && scriptDock.hasVisibleScripts == false"
-      }
-    ],
     "menus": {
       "view/title": [
         {
@@ -219,11 +208,6 @@
           "command": "scriptDock.addSuggestedChains",
           "when": "view == scriptDock.scripts",
           "group": "navigation@3"
-        },
-        {
-          "command": "scriptDock.showRunHistory",
-          "when": "view == scriptDock.scripts",
-          "group": "actions@3"
         },
         {
           "command": "scriptDock.showHiddenScript",
@@ -293,24 +277,24 @@
           "group": "inline@4"
         },
         {
-          "command": "scriptDock.continueChainOnFailure",
-          "when": "view == scriptDock.scripts && viewItem =~ /\\bstatusBarCommand\\b/ && viewItem =~ /\\bstopOnFailure\\b/",
+          "command": "scriptDock.stopBackgroundStatusBarCommand",
+          "when": "view == scriptDock.scripts && viewItem =~ /\\bstatusBarCommand\\b/ && viewItem =~ /\\brunning\\b/",
           "group": "inline@5"
         },
         {
-          "command": "scriptDock.stopChainOnFailure",
-          "when": "view == scriptDock.scripts && viewItem =~ /\\bstatusBarCommand\\b/ && viewItem =~ /\\bcontinueOnFailure\\b/",
-          "group": "inline@5"
+          "command": "scriptDock.editScriptChain",
+          "when": "view == scriptDock.scripts && viewItem =~ /\\bstatusBarCommand\\b/",
+          "group": "inline@6"
         },
         {
           "command": "scriptDock.enableAutoClose",
           "when": "view == scriptDock.scripts && viewItem =~ /\\bnotAutoClose\\b/",
-          "group": "inline@6"
+          "group": "inline@7"
         },
         {
           "command": "scriptDock.disableAutoClose",
           "when": "view == scriptDock.scripts && viewItem =~ /\\bautoClose\\b/",
-          "group": "inline@6"
+          "group": "inline@7"
         },
         {
           "command": "scriptDock.hideScript",
@@ -384,14 +368,6 @@
                   "terminal"
                 ],
                 "description": "How this status bar script runs. Background scripts show spinner/check/error states and write to the Script Dock output. Terminal scripts open a VS Code terminal. When omitted, scripts use terminal mode."
-              },
-              "failurePolicy": {
-                "type": "string",
-                "enum": [
-                  "stop",
-                  "continue"
-                ],
-                "description": "How script chains handle failed scripts. Stop halts on the first failure. Continue runs the rest of the chain and reports failure at the end."
               }
             }
           },
@@ -456,7 +432,7 @@
     }
   },
   "activationEvents": [
-    "onStartupFinished"
+    "*"
   ],
   "icon": "resources/script-dock-icon.png",
   "engines": {

@@ -1,8 +1,10 @@
 .agents/**
+.omx/**
 .git/**
 .vscode/**
 node_modules/**
 src/**
+webviews/**
 *.vsix
 .gitignore
 .oxfmtrc.json
@@ -11,4 +13,4 @@ src/**
 bun.lock
 knip.json
 tsconfig.json
-
+vite.webviews.config.ts

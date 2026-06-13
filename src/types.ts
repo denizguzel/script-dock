@@ -8,7 +8,6 @@ export type ResolvedPackageManager = Exclude<PackageManager, 'auto'>;
 export type StatusBarAlignmentPreference = 'left' | 'right';
 export type StatusBarCommandExecutionMode = 'background' | 'terminal';
 export type StatusBarDisplayMode = 'compact' | 'expanded';
-export type StatusBarCommandFailurePolicy = 'continue' | 'stop';
 type StatusBarCommandRunState = 'failed' | 'idle' | 'running' | 'success';
 
 export interface PackageRoot {
@@ -32,7 +31,6 @@ export interface StatusBarCommand {
   icon?: string;
   autoClose?: boolean;
   executionMode?: StatusBarCommandExecutionMode;
-  failurePolicy?: StatusBarCommandFailurePolicy;
 }
 
 export interface StatusBarCommandRunStatus {
@@ -41,35 +39,11 @@ export interface StatusBarCommandRunStatus {
   state: StatusBarCommandRunState;
 }
 
-export interface ScriptRunHistory {
-  commandKey: string;
-  durationMs?: number;
-  endedAt: number;
-  exitCode?: number | null;
-  label: string;
-  message?: string;
-  outputTail?: string;
-  packagePath?: string;
-  scriptNames: string[];
-  success: boolean;
-}
-
-export interface CommandActivity {
-  commandKey: string;
-  label: string;
-  mode: StatusBarCommandExecutionMode;
-  packagePath?: string;
-  scriptNames: string[];
-  startedAt: number;
-}
-
 export interface WorkspacePreferences {
   autoCloseScripts: string[];
-  commandActivity: CommandActivity[];
   collapsedTreeGroups: string[];
   favoriteScripts: string[];
   hideScripts: string[];
-  runHistory: ScriptRunHistory[];
   statusBarAlignment: StatusBarAlignmentPreference;
   statusBarCommands: StatusBarCommand[];
   statusBarDisplayMode: StatusBarDisplayMode;
