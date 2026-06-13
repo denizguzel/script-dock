@@ -50,6 +50,10 @@ export async function runStatusBarCommandInBackground(options: BackgroundRunOpti
   appendRunHeader(options);
 
   for (const scriptName of options.scriptNames) {
+    if (stoppedCommandKeys.delete(commandKey)) {
+      return createStoppedResult(commandKey, options.command.label, startedAt, outputBuffer.value);
+    }
+
     const result = await runScript(options.packageManager, scriptName, options.cwd, commandKey, outputBuffer);
 
     if (result.success) {
@@ -57,21 +61,7 @@ export async function runStatusBarCommandInBackground(options: BackgroundRunOpti
     }
 
     if (result.stopped) {
-      const message = `${options.command.label} stopped.`;
-      const durationMs = Date.now() - startedAt;
-
-      outputChannel.appendLine('');
-      outputChannel.appendLine(`[stopped] ${message}`);
-      setRunState(commandKey, createFailureStatus(message, result.exitCode));
-
-      return {
-        durationMs,
-        message,
-        outputTail: outputBuffer.value,
-        stopped: true,
-        success: false,
-        ...(result.exitCode === undefined ? {} : { exitCode: result.exitCode }),
-      };
+      return createStoppedResult(commandKey, options.command.label, startedAt, outputBuffer.value, result.exitCode);
     }
 
     const message = `${options.command.label} failed while running "${scriptName}".`;
@@ -84,12 +74,16 @@ export async function runStatusBarCommandInBackground(options: BackgroundRunOpti
     return createFailureResult(message, result.exitCode, durationMs, outputBuffer.value);
   }
 
+  if (stoppedCommandKeys.delete(commandKey)) {
+    return createStoppedResult(commandKey, options.command.label, startedAt, outputBuffer.value);
+  }
+
   const durationMs = Date.now() - startedAt;
 
   outputChannel.appendLine('');
   outputChannel.appendLine(`[success] ${options.command.label}`);
   setRunState(commandKey, { state: 'success' });
-  clearTransientSuccess(commandKey);
+  clearTransientState(commandKey, 'success');
 
   return {
     durationMs,
@@ -107,16 +101,26 @@ export function stopStatusBarCommand(command: StatusBarCommand): boolean {
   const child = runningProcesses.get(commandKey);
 
   if (!child) {
-    return false;
+    if (runStates.get(commandKey)?.state !== 'running') {
+      return false;
+    }
+
+    stoppedCommandKeys.add(commandKey);
+    setRunState(commandKey, {
+      message: 'Cancellation requested.',
+      state: 'running',
+    });
+
+    return true;
   }
 
-  child.kill();
   stoppedCommandKeys.add(commandKey);
-  runningProcesses.delete(commandKey);
   setRunState(commandKey, {
-    message: 'Stopped by user.',
-    state: 'failed',
+    message: 'Cancellation requested.',
+    state: 'running',
   });
+  child.kill();
+  runningProcesses.delete(commandKey);
 
   return true;
 }
@@ -190,7 +194,7 @@ async function runScript(
         exitCode,
         outputTail: outputBuffer.value,
         ...(stopped ? { message: 'Stopped by user.', stopped: true } : {}),
-        success: exitCode === 0,
+        success: !stopped && exitCode === 0,
       });
     });
   });
@@ -205,15 +209,43 @@ function setRunState(commandKey: string, status: StatusBarCommandRunStatus) {
   onDidChangeStatusBarCommandRunStateEmitter.fire();
 }
 
-function clearTransientSuccess(commandKey: string) {
+function clearTransientState(commandKey: string, state: StatusBarCommandRunStatus['state']) {
   setTimeout(() => {
-    if (runStates.get(commandKey)?.state !== 'success') {
+    if (runStates.get(commandKey)?.state !== state) {
       return;
     }
 
     runStates.delete(commandKey);
     onDidChangeStatusBarCommandRunStateEmitter.fire();
   }, 1500);
+}
+
+function createStoppedResult(
+  commandKey: string,
+  label: string,
+  startedAt: number,
+  outputTail: string,
+  exitCode?: number | null,
+): BackgroundRunResult {
+  const message = `${label} cancelled.`;
+  const durationMs = Date.now() - startedAt;
+
+  outputChannel.appendLine('');
+  outputChannel.appendLine(`[cancelled] ${message}`);
+  setRunState(commandKey, {
+    message,
+    state: 'cancelled',
+  });
+  clearTransientState(commandKey, 'cancelled');
+
+  return {
+    durationMs,
+    message,
+    outputTail,
+    stopped: true,
+    success: false,
+    ...(exitCode === undefined ? {} : { exitCode }),
+  };
 }
 
 function createFailureStatus(message: string, exitCode: number | null | undefined): StatusBarCommandRunStatus {
