@@ -33,7 +33,7 @@
     "@types/node": "25.9.3",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
-    "@types/vscode": "1.120.0",
+    "@types/vscode": "1.110.0",
     "@vitejs/plugin-react": "6.0.2",
     "@vscode/vsce": "3.9.2",
     "knip": "6.16.1",
@@ -436,7 +436,7 @@
   ],
   "icon": "resources/script-dock-icon.png",
   "engines": {
-    "vscode": ">=1.120.0"
+    "vscode": ">=1.110.0"
   },
   "packageManager": "bun@1.3.14"
 }
