@@ -68,4 +68,4 @@ bun install
 bun run build
 ```
 
-Open this folder in VS Code and run the `Run Extension` debug configuration. The launch config opens `/home/denizguzel/development/Frontend/bstp-csr` as the test workspace.
+Open this folder in VS Code and run the `Run Extension` debug configuration. By default, the extension development host opens this repository as the test workspace.
