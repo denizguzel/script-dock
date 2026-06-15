@@ -1,7 +1,7 @@
 {
   "name": "script-dock",
   "displayName": "Script Dock",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Run workspace package scripts from a compact VS Code side panel.",
   "categories": [
     "Other"
@@ -432,7 +432,7 @@
     }
   },
   "activationEvents": [
-    "*"
+    "onStartupFinished"
   ],
   "icon": "resources/script-dock-icon.png",
   "engines": {
