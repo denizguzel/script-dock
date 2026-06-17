@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["webviews/script-chain-editor/main.tsx"],
+  "entry": ["webviews/launcher/main.tsx", "webviews/script-chain-editor/main.tsx"],
   "ignore": ["webviews/vite-env.d.ts"],
   "ignoreDependencies": ["tailwindcss"],
   "project": ["src/**/*.ts", "webviews/**/*.{d.ts,ts,tsx}"]

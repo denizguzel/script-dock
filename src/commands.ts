@@ -5,6 +5,7 @@ import {
   runStatusBarCommandInBackground,
   showCommandOutput,
   stopStatusBarCommand,
+  trackStatusBarCommandTerminal,
 } from './command-runner';
 import {
   getConfiguredScripts,
@@ -20,32 +21,25 @@ import { showScriptChainEditor } from './script-chain-editor';
 import { getAllScripts, getFavoriteScripts, getPackageRoots, getVisibleScripts } from './scripts';
 import { createStatusBarCommandKey, getStatusBarCommandScripts, getStatusBarExecutionMode } from './status-bar-command';
 import { createTerminalCommand, runTerminalCommand } from './terminal';
-import { ScriptItem } from './tree';
 import type { PackageRoot, ScriptEntry, StatusBarCommand, StatusBarCommandExecutionMode } from './types';
 
 interface ScriptQuickPickItem extends vscode.QuickPickItem {
   script: ScriptEntry;
 }
 
-export async function runScript(item?: ScriptItem) {
-  const scriptItem = item ?? (await pickScript());
+export async function runScript(script?: ScriptEntry) {
+  const scriptEntry = script ?? (await pickScript());
 
-  if (!scriptItem) {
+  if (!scriptEntry) {
     return;
   }
 
-  const packageManager = await resolvePackageManager(scriptItem.packageRoot.fsPath);
-  const command = createTerminalCommand(
-    packageManager,
-    [scriptItem.scriptName],
-    undefined,
-    scriptItem.packageRoot.packagePath,
-  );
-
-  runTerminalCommand({
-    command,
-    cwd: scriptItem.packageRoot.fsPath,
-    name: `${packageManager} ${scriptItem.scriptName}`,
+  await runStatusBarCommand({
+    executionMode: 'terminal',
+    icon: 'play-circle',
+    label: scriptEntry.name,
+    packagePath: scriptEntry.packageRoot.packagePath,
+    script: scriptEntry.name,
   });
 }
 
@@ -58,6 +52,7 @@ export async function runStatusBarCommand(command: StatusBarCommand, options: { 
 
   const scriptNames = getStatusBarCommandScripts(command);
   const runStatus = getStatusBarCommandRunStatus(command);
+  const executionMode = getStatusBarExecutionMode(command);
 
   if (scriptNames.length === 0) {
     vscode.window.showWarningMessage(`Status bar script "${command.label}" has no scripts configured.`);
@@ -96,7 +91,6 @@ export async function runStatusBarCommand(command: StatusBarCommand, options: { 
   }
 
   const packageManager = await resolvePackageManager(packageRoot.fsPath);
-  const executionMode = getStatusBarExecutionMode(command);
 
   if (executionMode === 'background') {
     const result = await runStatusBarCommandInBackground({
@@ -132,11 +126,12 @@ export async function runStatusBarCommand(command: StatusBarCommand, options: { 
     packageRoot.packagePath,
   );
 
-  runTerminalCommand({
+  const terminal = runTerminalCommand({
     command: terminalCommand,
     cwd: packageRoot.fsPath,
     name: `${packageManager} ${command.label}`,
   });
+  trackStatusBarCommandTerminal(command, terminal);
 }
 
 export async function pickAndRunFavoriteScript() {
@@ -159,7 +154,7 @@ export async function pickAndRunStatusBarCommand() {
   const commands = getStatusBarCommands();
 
   if (commands.length === 0) {
-    vscode.window.showInformationMessage('Add status bar scripts before using compact mode.');
+    vscode.window.showInformationMessage('Pin scripts before using the Script Dock picker.');
     return;
   }
 
@@ -170,7 +165,7 @@ export async function pickAndRunStatusBarCommand() {
       label: command.label,
       command,
     })),
-    { placeHolder: 'Run a Script Dock status bar script' },
+    { placeHolder: 'Run a pinned Script Dock script' },
   );
 
   if (selected) {
@@ -255,7 +250,7 @@ export async function addSuggestedChains() {
     })),
     {
       canPickMany: true,
-      placeHolder: 'Add suggested status bar chains',
+      placeHolder: 'Add suggested pinned chains',
     },
   );
 
@@ -378,10 +373,10 @@ export async function stopBackgroundStatusBarCommand(commandOrItem?: unknown) {
   }
 }
 
-export async function addStatusBarCommand(item?: ScriptItem) {
-  const scriptItem = item ?? (await pickScript());
+export async function addStatusBarCommand(script?: ScriptEntry) {
+  const scriptEntry = script ?? (await pickScript());
 
-  if (!scriptItem) {
+  if (!scriptEntry) {
     return;
   }
 
@@ -390,11 +385,10 @@ export async function addStatusBarCommand(item?: ScriptItem) {
   if (
     commands.some(
       (command) =>
-        command.script === scriptItem.scriptName &&
-        getCommandPackagePath(command) === scriptItem.packageRoot.packagePath,
+        command.script === scriptEntry.name && getCommandPackagePath(command) === scriptEntry.packageRoot.packagePath,
     )
   ) {
-    vscode.window.showInformationMessage(`${scriptItem.scriptName} is already shown in the status bar.`);
+    vscode.window.showInformationMessage(`${scriptEntry.name} is already pinned.`);
     return;
   }
 
@@ -402,32 +396,29 @@ export async function addStatusBarCommand(item?: ScriptItem) {
     ...commands,
     {
       executionMode: 'terminal',
-      icon: 'terminal',
-      label: scriptItem.scriptName,
-      packagePath: scriptItem.packageRoot.packagePath,
-      script: scriptItem.scriptName,
+      icon: 'play-circle',
+      label: scriptEntry.name,
+      packagePath: scriptEntry.packageRoot.packagePath,
+      script: scriptEntry.name,
     },
   ]);
 }
 
-export async function removeStatusBarCommand(item?: ScriptItem) {
-  const scriptItem = item ?? (await pickScript());
+export async function removeStatusBarCommand(script?: ScriptEntry) {
+  const scriptEntry = script ?? (await pickScript());
 
-  if (!scriptItem) {
+  if (!scriptEntry) {
     return;
   }
 
   const commands = getStatusBarCommands();
   const nextCommands = commands.filter(
     (command) =>
-      !(
-        command.script === scriptItem.scriptName &&
-        getCommandPackagePath(command) === scriptItem.packageRoot.packagePath
-      ),
+      !(command.script === scriptEntry.name && getCommandPackagePath(command) === scriptEntry.packageRoot.packagePath),
   );
 
   if (nextCommands.length === commands.length) {
-    vscode.window.showInformationMessage(`${scriptItem.scriptName} is not shown in the status bar.`);
+    vscode.window.showInformationMessage(`${scriptEntry.name} is not pinned.`);
     return;
   }
 
@@ -467,12 +458,12 @@ export async function showHiddenScript() {
 
 export async function updateScriptListSetting(
   key: 'autoCloseScripts' | 'favoriteScripts' | 'hideScripts',
-  item: ScriptItem | undefined,
+  script: ScriptEntry | undefined,
   action: 'add' | 'remove',
 ) {
-  const scriptItem = item ?? (await pickScript());
+  const scriptEntry = script ?? (await pickScript());
 
-  if (!scriptItem) {
+  if (!scriptEntry) {
     return;
   }
 
@@ -480,21 +471,21 @@ export async function updateScriptListSetting(
   const currentSet = new Set(currentValue);
 
   if (action === 'add') {
-    currentSet.add(scriptItem.scriptId);
+    currentSet.add(scriptEntry.id);
   } else {
-    currentSet.delete(scriptItem.scriptId);
+    currentSet.delete(scriptEntry.id);
   }
 
   await updateScriptListPreference(key, [...currentSet]);
 }
 
 export async function updateStatusBarCommandExecutionMode(
-  item: ScriptItem | undefined,
+  script: ScriptEntry | undefined,
   executionMode: StatusBarCommandExecutionMode,
 ) {
-  const scriptItem = item ?? (await pickScript());
+  const scriptEntry = script ?? (await pickScript());
 
-  if (!scriptItem) {
+  if (!scriptEntry) {
     return;
   }
 
@@ -504,13 +495,13 @@ export async function updateStatusBarCommandExecutionMode(
 
     return (
       scriptNames.length === 1 &&
-      scriptNames[0] === scriptItem.scriptName &&
-      getCommandPackagePath(command) === scriptItem.packageRoot.packagePath
+      scriptNames[0] === scriptEntry.name &&
+      getCommandPackagePath(command) === scriptEntry.packageRoot.packagePath
     );
   });
 
   if (commandIndex === -1) {
-    vscode.window.showInformationMessage(`${scriptItem.scriptName} is not shown in the status bar.`);
+    vscode.window.showInformationMessage(`${scriptEntry.name} is not pinned.`);
     return;
   }
 
@@ -529,9 +520,21 @@ export async function updateStatusBarCommandExecutionMode(
   await updateStatusBarCommands(nextCommands);
 }
 
+export async function updatePinnedScriptExecutionMode(
+  command: StatusBarCommand,
+  executionMode: StatusBarCommandExecutionMode,
+) {
+  const commandKey = createStatusBarCommandKey(command);
+  const nextCommands = getStatusBarCommands().map((item) =>
+    createStatusBarCommandKey(item) === commandKey ? { ...item, executionMode } : item,
+  );
+
+  await updateStatusBarCommands(nextCommands);
+}
+
 async function pickScript(
   options: { favoritesOnly?: boolean; placeHolder?: string } = {},
-): Promise<ScriptItem | undefined> {
+): Promise<ScriptEntry | undefined> {
   const workspaceFolder = getWorkspaceFolder();
 
   if (!workspaceFolder) {
@@ -561,15 +564,7 @@ async function pickScript(
     return undefined;
   }
 
-  return new ScriptItem(selected.script, {
-    isAutoClose: getConfiguredScripts('autoCloseScripts').includes(selected.script.id),
-    isFavorite: getConfiguredScripts('favoriteScripts').includes(selected.script.id),
-    isStatusBarCommand: getStatusBarCommands().some(
-      (command) =>
-        getStatusBarCommandScripts(command).includes(selected.script.name) &&
-        getCommandPackagePath(command) === selected.script.packageRoot.packagePath,
-    ),
-  });
+  return selected.script;
 }
 
 async function pickScriptChainPackageScripts(scripts: ScriptEntry[]): Promise<ScriptEntry[] | undefined> {
@@ -797,10 +792,6 @@ async function resolveEditableStatusBarCommand(
   commandOrItem: unknown,
   options: { pickStatusBarCommand?: boolean } = {},
 ): Promise<StatusBarCommand | undefined> {
-  if (isStatusBarCommandTreeItem(commandOrItem)) {
-    return commandOrItem.statusBarCommand;
-  }
-
   if (isStatusBarCommand(commandOrItem)) {
     return commandOrItem;
   }
@@ -809,9 +800,9 @@ async function resolveEditableStatusBarCommand(
     return pickStatusBarCommand();
   }
 
-  const scriptItem = commandOrItem instanceof ScriptItem ? commandOrItem : await pickScript();
+  const scriptEntry = isScriptEntry(commandOrItem) ? commandOrItem : await pickScript();
 
-  if (!scriptItem) {
+  if (!scriptEntry) {
     return undefined;
   }
 
@@ -820,13 +811,13 @@ async function resolveEditableStatusBarCommand(
 
     return (
       scriptNames.length === 1 &&
-      scriptNames[0] === scriptItem.scriptName &&
-      getCommandPackagePath(item) === scriptItem.packageRoot.packagePath
+      scriptNames[0] === scriptEntry.name &&
+      getCommandPackagePath(item) === scriptEntry.packageRoot.packagePath
     );
   });
 
   if (!command) {
-    vscode.window.showInformationMessage(`${scriptItem.scriptName} is not shown in the status bar.`);
+    vscode.window.showInformationMessage(`${scriptEntry.name} is not shown in the status bar.`);
   }
 
   return command;
@@ -836,7 +827,7 @@ async function pickStatusBarCommand(): Promise<StatusBarCommand | undefined> {
   const commands = getStatusBarCommands();
 
   if (commands.length === 0) {
-    vscode.window.showInformationMessage('No status bar scripts are configured.');
+    vscode.window.showInformationMessage('No pinned scripts are configured.');
     return undefined;
   }
 
@@ -847,23 +838,26 @@ async function pickStatusBarCommand(): Promise<StatusBarCommand | undefined> {
       label: command.label,
       command,
     })),
-    { placeHolder: 'Select a status bar script' },
+    { placeHolder: 'Select a pinned script' },
   );
 
   return selected?.command;
 }
 
-function isStatusBarCommandTreeItem(value: unknown): value is { statusBarCommand: StatusBarCommand } {
+function isStatusBarCommand(value: unknown): value is StatusBarCommand {
+  return typeof value === 'object' && value !== null && 'label' in value && typeof value.label === 'string';
+}
+
+function isScriptEntry(value: unknown): value is ScriptEntry {
   return (
     typeof value === 'object' &&
     value !== null &&
-    'statusBarCommand' in value &&
-    isStatusBarCommand(value.statusBarCommand)
+    'id' in value &&
+    typeof value.id === 'string' &&
+    'name' in value &&
+    typeof value.name === 'string' &&
+    'packageRoot' in value
   );
-}
-
-function isStatusBarCommand(value: unknown): value is StatusBarCommand {
-  return typeof value === 'object' && value !== null && 'label' in value && typeof value.label === 'string';
 }
 
 function formatPackagePath(packagePath: string): string {

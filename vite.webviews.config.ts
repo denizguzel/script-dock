@@ -9,6 +9,7 @@ export default defineConfig({
     outDir: 'dist/webviews',
     rollupOptions: {
       input: {
+        launcher: 'webviews/launcher/main.tsx',
         'script-chain-editor': 'webviews/script-chain-editor/main.tsx',
       },
       output: {

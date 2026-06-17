@@ -12,6 +12,7 @@ import {
   getStatusBarOverflowLimit,
   getStatusBarPriority,
   getStatusBarPriorityStep,
+  shouldShowStatusBarScripts,
 } from './config';
 import type { ResolvedPackageManager, StatusBarCommand } from './types';
 
@@ -36,6 +37,10 @@ export class StatusBarController implements vscode.Disposable {
 
     this.disposeItems();
 
+    if (!shouldShowStatusBarScripts()) {
+      return;
+    }
+
     const alignment = getStatusBarAlignment();
     const commands = getStatusBarCommands();
     const priority = getStatusBarPriority();
@@ -48,7 +53,7 @@ export class StatusBarController implements vscode.Disposable {
       item.tooltip = createCompactStatusBarTooltip(commands);
       item.command = {
         command: 'scriptDock.pickStatusBarCommand',
-        title: 'Run Script Dock Script',
+        title: 'Run Pinned Script',
       };
       item.show();
 
@@ -68,10 +73,7 @@ export class StatusBarController implements vscode.Disposable {
       item.tooltip = createStatusBarTooltip(command, packageManager);
       item.command = {
         command: 'scriptDock.runStatusBarCommand',
-        title:
-          getStatusBarCommandRunStatus(command).state === 'running'
-            ? 'Cancel Status Bar Script'
-            : 'Run Status Bar Script',
+        title: createStatusBarCommandTitle(command),
         arguments: [command],
       };
       item.show();
@@ -89,7 +91,7 @@ export class StatusBarController implements vscode.Disposable {
     overflowItem.tooltip = createOverflowStatusBarTooltip(overflowCommands);
     overflowItem.command = {
       command: 'scriptDock.pickStatusBarCommand',
-      title: 'Run Hidden Status Bar Script',
+      title: 'Run Overflow Pinned Script',
     };
     overflowItem.show();
 
@@ -148,7 +150,7 @@ function createCompactStatusBarText(commands: StatusBarCommand[]): string {
     return '$(circle-slash) Script Dock';
   }
 
-  return '$(terminal) Script Dock';
+  return '$(play-circle) Script Dock';
 }
 
 function createCompactStatusBarTooltip(commands: StatusBarCommand[]): vscode.MarkdownString {
@@ -158,11 +160,11 @@ function createCompactStatusBarTooltip(commands: StatusBarCommand[]): vscode.Mar
   tooltip.appendMarkdown('**Script Dock**\n\n');
 
   if (commands.length === 0) {
-    tooltip.appendMarkdown('No status bar scripts configured.');
+    tooltip.appendMarkdown('No pinned scripts configured.');
     return tooltip;
   }
 
-  tooltip.appendMarkdown('Click to run a status bar script.\n\n');
+  tooltip.appendMarkdown('Click to run a pinned script.\n\n');
   tooltip.appendMarkdown(commands.map((command) => `- ${describeCompactCommand(command)}`).join('\n'));
 
   return tooltip;
@@ -210,11 +212,19 @@ function createStatusBarTooltip(
     tooltip.appendMarkdown(`Status: ${describeRunStatus(runStatus)}\n\n`);
   }
 
-  tooltip.appendMarkdown(`Action: ${describeClickAction(runStatus)}\n\n`);
+  tooltip.appendMarkdown(`Action: ${describeClickAction(runStatus, executionMode)}\n\n`);
   tooltip.appendMarkdown(`Package: \`${formatPackagePath(command.packagePath)}\`\n\n`);
   tooltip.appendMarkdown(`Terminal: \`${terminalCommand}\``);
 
   return tooltip;
+}
+
+function createStatusBarCommandTitle(command: StatusBarCommand): string {
+  if (getStatusBarCommandRunStatus(command).state !== 'running') {
+    return 'Run Pinned Script';
+  }
+
+  return getStatusBarExecutionMode(command) === 'terminal' ? 'Stop Pinned Script Terminal' : 'Cancel Pinned Script';
 }
 
 function createPreviewTerminalCommand(
@@ -247,7 +257,7 @@ function getStatusBarIcon(command: StatusBarCommand, scriptNames: string[]): str
   const runStatus = getStatusBarCommandRunStatus(command);
 
   if (runStatus.state === 'running') {
-    return '$(sync~spin) ';
+    return '$(debug-stop) ';
   }
 
   if (runStatus.state === 'success') {
@@ -268,7 +278,7 @@ function getStatusBarIcon(command: StatusBarCommand, scriptNames: string[]): str
 
   return shouldAutoCloseTerminal(scriptNames, command.autoClose, command.packagePath)
     ? '$(debug-disconnect) '
-    : '$(terminal) ';
+    : '$(play-circle) ';
 }
 
 function shouldAutoCloseTerminal(scriptNames: string[], autoClose?: boolean, packagePath = '.'): boolean {
@@ -293,9 +303,12 @@ function describeExecutionMode(
   return `opens a terminal and ${describesTerminalLifecycle(scriptNames, autoClose, packagePath)}`;
 }
 
-function describeClickAction(runStatus: ReturnType<typeof getStatusBarCommandRunStatus>): string {
+function describeClickAction(
+  runStatus: ReturnType<typeof getStatusBarCommandRunStatus>,
+  executionMode: ReturnType<typeof getStatusBarExecutionMode>,
+): string {
   if (runStatus.state === 'running') {
-    return 'Click to cancel.';
+    return executionMode === 'terminal' ? 'Click to stop the terminal run.' : 'Click to cancel.';
   }
 
   if (runStatus.state === 'failed') {
