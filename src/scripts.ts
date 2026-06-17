@@ -73,26 +73,20 @@ export async function getVisibleScripts(workspaceFolder: vscode.WorkspaceFolder)
   return getVisibleScriptsFromScripts(scripts);
 }
 
-export function getVisibleScriptsFromScripts(scripts: ScriptEntry[]): ScriptEntry[] {
-  const hiddenScripts = new Set(getConfiguredScripts('hideScripts'));
-
-  return scripts.filter((script) => !hiddenScripts.has(script.name));
-}
-
 export function getFavoriteScripts(scripts: ScriptEntry[]): ScriptEntry[] {
   const favoriteNames = new Set(getConfiguredScripts('favoriteScripts'));
 
   return scripts.filter((script) => favoriteNames.has(script.id));
 }
 
-export function getNonFavoriteScripts(scripts: ScriptEntry[]): ScriptEntry[] {
-  const favoriteNames = new Set(getConfiguredScripts('favoriteScripts'));
-
-  return scripts.filter((script) => !favoriteNames.has(script.id));
-}
-
 export function createScriptId(packagePath: string, scriptName: string): string {
   return packagePath === '.' ? scriptName : `${packagePath}#${scriptName}`;
+}
+
+function getVisibleScriptsFromScripts(scripts: ScriptEntry[]): ScriptEntry[] {
+  const hiddenScripts = new Set(getConfiguredScripts('hideScripts'));
+
+  return scripts.filter((script) => !hiddenScripts.has(script.id));
 }
 
 function normalizePackagePath(packagePath: string): string {

@@ -20,36 +20,37 @@ import {
   useCompactStatusBar,
   useExpandedStatusBar,
 } from './commands';
-import { disposeCommandRunner } from './command-runner';
+import { disposeCommandRunner, onDidChangeStatusBarCommandRunState } from './command-runner';
 import {
   configurationSection,
   getStatusBarAlignmentPreference,
   getStatusBarDisplayMode,
   initializeWorkspacePreferences,
   onDidChangeWorkspacePreferences,
+  shouldShowStatusBarScripts,
 } from './config';
-import { onDidChangeStatusBarCommandRunState } from './command-runner';
+import { ScriptDockViewProvider } from './script-dock-view';
 import { StatusBarController } from './status-bar';
-import { ScriptItem, ScriptsDragAndDropController, ScriptsProvider } from './tree';
+import type { ScriptEntry } from './types';
 
 export function activate(context: vscode.ExtensionContext) {
-  const scriptsProvider = new ScriptsProvider();
-  const scriptsTreeView = vscode.window.createTreeView('scriptDock.scripts', {
-    dragAndDropController: new ScriptsDragAndDropController(),
-    treeDataProvider: scriptsProvider,
-  });
-
   initializeWorkspacePreferences(context.workspaceState);
 
   const statusBarController = new StatusBarController();
+  const scriptDockViewProvider = new ScriptDockViewProvider(context.extensionUri, context.workspaceState, {
+    addSuggestedChains,
+    createScriptChain: () => createScriptChain(context.extensionUri),
+    editScriptChain: (command) => editScriptChain(context.extensionUri, command),
+    resetWorkspacePreferences: resetWorkspacePreferencesCommand,
+    showHiddenScript,
+  });
 
   context.subscriptions.push(
     statusBarController,
-    scriptsTreeView,
-    scriptsTreeView.onDidCollapseElement((event) => void scriptsProvider.collapseGroup(event.element)),
-    scriptsTreeView.onDidExpandElement((event) => void scriptsProvider.expandGroup(event.element)),
+    scriptDockViewProvider,
+    vscode.window.registerWebviewViewProvider('scriptDock.scripts', scriptDockViewProvider),
     { dispose: disposeCommandRunner },
-    vscode.commands.registerCommand('scriptDock.refreshScripts', () => void scriptsProvider.reload()),
+    vscode.commands.registerCommand('scriptDock.refreshScripts', () => void scriptDockViewProvider.reload()),
     vscode.commands.registerCommand('scriptDock.runScript', runScript),
     vscode.commands.registerCommand('scriptDock.runStatusBarCommand', runStatusBarCommand),
     vscode.commands.registerCommand('scriptDock.pickStatusBarCommand', pickAndRunStatusBarCommand),
@@ -61,67 +62,83 @@ export function activate(context: vscode.ExtensionContext) {
     ),
     vscode.commands.registerCommand('scriptDock.addSuggestedChains', addSuggestedChains),
     vscode.commands.registerCommand('scriptDock.resetWorkspacePreferences', resetWorkspacePreferencesCommand),
-    vscode.commands.registerCommand('scriptDock.addFavorite', (item?: ScriptItem) =>
-      updateScriptListSetting('favoriteScripts', item, 'add'),
+    vscode.commands.registerCommand('scriptDock.addFavorite', (script?: ScriptEntry) =>
+      updateScriptListSetting('favoriteScripts', script, 'add'),
     ),
-    vscode.commands.registerCommand('scriptDock.removeFavorite', (item?: ScriptItem) =>
-      updateScriptListSetting('favoriteScripts', item, 'remove'),
+    vscode.commands.registerCommand('scriptDock.removeFavorite', (script?: ScriptEntry) =>
+      updateScriptListSetting('favoriteScripts', script, 'remove'),
     ),
     vscode.commands.registerCommand('scriptDock.addStatusBarCommand', addStatusBarCommand),
     vscode.commands.registerCommand('scriptDock.removeStatusBarCommand', removeStatusBarCommand),
-    vscode.commands.registerCommand('scriptDock.runStatusBarCommandInBackground', (item?: ScriptItem) =>
-      updateStatusBarCommandExecutionMode(item, 'background'),
+    vscode.commands.registerCommand('scriptDock.runStatusBarCommandInBackground', (script?: ScriptEntry) =>
+      updateStatusBarCommandExecutionMode(script, 'background'),
     ),
-    vscode.commands.registerCommand('scriptDock.runStatusBarCommandInTerminal', (item?: ScriptItem) =>
-      updateStatusBarCommandExecutionMode(item, 'terminal'),
+    vscode.commands.registerCommand('scriptDock.runStatusBarCommandInTerminal', (script?: ScriptEntry) =>
+      updateStatusBarCommandExecutionMode(script, 'terminal'),
     ),
     vscode.commands.registerCommand('scriptDock.stopBackgroundStatusBarCommand', stopBackgroundStatusBarCommand),
     vscode.commands.registerCommand('scriptDock.moveStatusBarCommandsLeft', moveStatusBarCommandsLeft),
     vscode.commands.registerCommand('scriptDock.moveStatusBarCommandsRight', moveStatusBarCommandsRight),
     vscode.commands.registerCommand('scriptDock.useCompactStatusBar', useCompactStatusBar),
     vscode.commands.registerCommand('scriptDock.useExpandedStatusBar', useExpandedStatusBar),
-    vscode.commands.registerCommand('scriptDock.enableAutoClose', (item?: ScriptItem) =>
-      updateScriptListSetting('autoCloseScripts', item, 'add'),
+    vscode.commands.registerCommand('scriptDock.enableAutoClose', (script?: ScriptEntry) =>
+      updateScriptListSetting('autoCloseScripts', script, 'add'),
     ),
-    vscode.commands.registerCommand('scriptDock.disableAutoClose', (item?: ScriptItem) =>
-      updateScriptListSetting('autoCloseScripts', item, 'remove'),
+    vscode.commands.registerCommand('scriptDock.disableAutoClose', (script?: ScriptEntry) =>
+      updateScriptListSetting('autoCloseScripts', script, 'remove'),
     ),
-    vscode.commands.registerCommand('scriptDock.hideScript', (item?: ScriptItem) =>
-      updateScriptListSetting('hideScripts', item, 'add'),
+    vscode.commands.registerCommand('scriptDock.hideScript', (script?: ScriptEntry) =>
+      updateScriptListSetting('hideScripts', script, 'add'),
     ),
     vscode.commands.registerCommand('scriptDock.showHiddenScript', showHiddenScript),
-    onDidChangeStatusBarCommandRunState(() => scriptsProvider.refresh()),
+    onDidChangeStatusBarCommandRunState(() => {
+      scriptDockViewProvider.refresh();
+    }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration(configurationSection)) {
-        void scriptsProvider.reload();
+        void scriptDockViewProvider.reload();
         void vscode.commands.executeCommand(
           'setContext',
           'scriptDock.statusBarAlignment',
           getStatusBarAlignmentPreference(),
         );
         void vscode.commands.executeCommand('setContext', 'scriptDock.statusBarDisplayMode', getStatusBarDisplayMode());
+        void vscode.commands.executeCommand(
+          'setContext',
+          'scriptDock.showStatusBarScripts',
+          shouldShowStatusBarScripts(),
+        );
         void statusBarController.refresh();
+        scriptDockViewProvider.refresh();
       }
     }),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
-      void scriptsProvider.reload();
+      void scriptDockViewProvider.reload();
     }),
     onDidChangeWorkspacePreferences(() => {
-      scriptsProvider.refreshFromPreferences();
+      scriptDockViewProvider.refreshFromPreferences();
       void vscode.commands.executeCommand(
         'setContext',
         'scriptDock.statusBarAlignment',
         getStatusBarAlignmentPreference(),
       );
       void vscode.commands.executeCommand('setContext', 'scriptDock.statusBarDisplayMode', getStatusBarDisplayMode());
+      void vscode.commands.executeCommand(
+        'setContext',
+        'scriptDock.showStatusBarScripts',
+        shouldShowStatusBarScripts(),
+      );
       void statusBarController.refresh();
+      scriptDockViewProvider.refresh();
     }),
   );
 
   void vscode.commands.executeCommand('setContext', 'scriptDock.statusBarAlignment', getStatusBarAlignmentPreference());
   void vscode.commands.executeCommand('setContext', 'scriptDock.statusBarDisplayMode', getStatusBarDisplayMode());
-  void scriptsProvider.reload();
+  void vscode.commands.executeCommand('setContext', 'scriptDock.showStatusBarScripts', shouldShowStatusBarScripts());
+  void scriptDockViewProvider.reload();
   void statusBarController.refresh();
+  scriptDockViewProvider.refresh();
 }
 
 export function deactivate() {}

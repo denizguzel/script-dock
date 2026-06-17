@@ -4,8 +4,8 @@ VS Code extension for running workspace package scripts from a compact side pane
 
 ## Features
 
-- One-click status bar scripts for package scripts and script chains.
-- Compact status bar mode shows one Script Dock picker instead of one item per script.
+- Pinned scripts for package scripts and script chains.
+- Compact status bar mode shows one Script Dock picker instead of one item per pinned script.
 - Expanded status bar mode can move extra scripts into a single overflow picker.
 - Script chain builder from the side panel, without writing JSON by hand.
 - Script chains can be edited from the side panel after they are created.
@@ -20,20 +20,20 @@ VS Code extension for running workspace package scripts from a compact side pane
 - Multi-package workspaces are grouped by package root.
 - Nested Git repositories are ignored by default so opening a parent folder full of separate repos does not flood the panel.
 - Search scripts across the workspace from the panel title.
-- Context menu actions for adding or removing favorites and status bar scripts.
+- Context menu actions for adding or removing favorites and pinned scripts.
 - Drag pinned scripts and favorite scripts in the side panel to reorder them.
 - Inline status bar mode toggles let each script run in a terminal or in the background.
 - Hide noisy scripts from the panel and restore them from the panel title menu.
 - Automatic package manager detection from lockfiles.
 - Optional auto-close toggles for one-shot scripts after successful runs.
-- Move status bar scripts left or right from the panel title actions.
-- Favorites, hidden scripts, auto-close scripts, and status bar scripts created from the UI are stored in VS Code workspace storage, not in `.vscode/settings.json`.
+- Move the compact status bar picker left or right from the panel title actions.
+- Favorites, hidden scripts, auto-close scripts, and pinned scripts created from the UI are stored in VS Code workspace storage, not in `.vscode/settings.json`.
 
 ## Settings
 
 The extension ships without project-specific script defaults. You can use the panel context menu to build per-workspace preferences without creating git diffs.
 
-Run `Script Dock: Reset Workspace Preferences` from the command palette or panel title actions to clear UI-created favorites, hidden scripts, auto-close scripts, status bar scripts, and alignment for the current workspace.
+Run `Script Dock: Reset Workspace Preferences` from the command palette or panel title actions to clear UI-created favorites, hidden scripts, auto-close scripts, pinned scripts, and alignment for the current workspace.
 
 Manual settings are still supported when you want checked-in team defaults:
 
@@ -51,7 +51,7 @@ Manual settings are still supported when you want checked-in team defaults:
     { "label": "dev", "script": "dev", "packagePath": ".", "icon": "terminal", "executionMode": "terminal" }
   ],
   "scriptDock.statusBarAlignment": "left",
-  "scriptDock.statusBarDisplayMode": "expanded",
+  "scriptDock.statusBarDisplayMode": "compact",
   "scriptDock.statusBarOverflowLimit": 6,
   "scriptDock.includeNestedGitRepositories": false,
   "scriptDock.statusBarPriority": 10000,

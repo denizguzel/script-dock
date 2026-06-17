@@ -33,7 +33,7 @@ export function createRunCommand(packageManager: ResolvedPackageManager, scriptN
   return `${packageManager} run ${escapedScriptName}`;
 }
 
-export function runTerminalCommand(options: { command: string; cwd: string; name: string }) {
+export function runTerminalCommand(options: { command: string; cwd: string; name: string }): vscode.Terminal {
   const terminal = vscode.window.createTerminal({
     name: options.name,
     cwd: options.cwd,
@@ -41,6 +41,8 @@ export function runTerminalCommand(options: { command: string; cwd: string; name
 
   terminal.show();
   terminal.sendText(options.command);
+
+  return terminal;
 }
 
 function shellQuote(value: string): string {

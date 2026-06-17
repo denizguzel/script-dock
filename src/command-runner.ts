@@ -19,11 +19,43 @@ interface BackgroundRunResult {
   success: boolean;
 }
 
+interface RunningTerminal {
+  command: StatusBarCommand;
+  terminal: vscode.Terminal;
+}
+
 const outputChannel = vscode.window.createOutputChannel('Script Dock');
 const runStates = new Map<string, StatusBarCommandRunStatus>();
 const runningProcesses = new Map<string, ChildProcessWithoutNullStreams>();
+const runningTerminals = new Map<string, RunningTerminal>();
 const stoppedCommandKeys = new Set<string>();
 const onDidChangeStatusBarCommandRunStateEmitter = new vscode.EventEmitter<void>();
+const terminalCloseSubscription = vscode.window.onDidCloseTerminal((terminal) => {
+  for (const [commandKey, runningTerminal] of runningTerminals.entries()) {
+    if (runningTerminal.terminal !== terminal) {
+      continue;
+    }
+
+    runningTerminals.delete(commandKey);
+
+    if (runStates.get(commandKey)?.state === 'running') {
+      runStates.delete(commandKey);
+      onDidChangeStatusBarCommandRunStateEmitter.fire();
+    }
+
+    return;
+  }
+});
+const terminalShellExecutionEndSubscription = vscode.window.onDidEndTerminalShellExecution((event) => {
+  for (const [commandKey, runningTerminal] of runningTerminals.entries()) {
+    if (runningTerminal.terminal !== event.terminal) {
+      continue;
+    }
+
+    finishStatusBarCommandTerminal(commandKey, runningTerminal.command, event.exitCode);
+    return;
+  }
+});
 
 export const onDidChangeStatusBarCommandRunState = onDidChangeStatusBarCommandRunStateEmitter.event;
 
@@ -33,12 +65,23 @@ export function getStatusBarCommandRunStatus(command: StatusBarCommand): StatusB
 
 export function clearStatusBarCommandRunStatus(command: StatusBarCommand) {
   const commandKey = createStatusBarCommandKey(command);
+  const hadTerminal = runningTerminals.delete(commandKey);
 
-  if (!runStates.delete(commandKey)) {
+  if (!runStates.delete(commandKey) && !hadTerminal) {
     return;
   }
 
   onDidChangeStatusBarCommandRunStateEmitter.fire();
+}
+
+export function trackStatusBarCommandTerminal(command: StatusBarCommand, terminal: vscode.Terminal) {
+  const commandKey = createStatusBarCommandKey(command);
+
+  runningTerminals.set(commandKey, { command, terminal });
+  setRunState(commandKey, {
+    message: 'Running in terminal.',
+    state: 'running',
+  });
 }
 
 export async function runStatusBarCommandInBackground(options: BackgroundRunOptions): Promise<BackgroundRunResult> {
@@ -98,6 +141,15 @@ export function showCommandOutput() {
 
 export function stopStatusBarCommand(command: StatusBarCommand): boolean {
   const commandKey = createStatusBarCommandKey(command);
+  const runningTerminal = runningTerminals.get(commandKey);
+
+  if (runningTerminal) {
+    runningTerminals.delete(commandKey);
+    runningTerminal.terminal.dispose();
+    setCancelledRunState(commandKey, `${command.label} stopped.`);
+    return true;
+  }
+
   const child = runningProcesses.get(commandKey);
 
   if (!child) {
@@ -131,6 +183,9 @@ export function disposeCommandRunner() {
   }
 
   runningProcesses.clear();
+  runningTerminals.clear();
+  terminalCloseSubscription.dispose();
+  terminalShellExecutionEndSubscription.dispose();
   outputChannel.dispose();
   onDidChangeStatusBarCommandRunStateEmitter.dispose();
 }
@@ -209,6 +264,21 @@ function setRunState(commandKey: string, status: StatusBarCommandRunStatus) {
   onDidChangeStatusBarCommandRunStateEmitter.fire();
 }
 
+function finishStatusBarCommandTerminal(commandKey: string, command: StatusBarCommand, exitCode: number | undefined) {
+  runningTerminals.delete(commandKey);
+
+  if (exitCode === 0 || exitCode === undefined) {
+    setRunState(commandKey, {
+      state: 'success',
+      ...(exitCode === undefined ? { message: 'Terminal run finished.' } : {}),
+    });
+    clearTransientState(commandKey, 'success');
+    return;
+  }
+
+  setRunState(commandKey, createFailureStatus(`${command.label} failed in terminal.`, exitCode));
+}
+
 function clearTransientState(commandKey: string, state: StatusBarCommandRunStatus['state']) {
   setTimeout(() => {
     if (runStates.get(commandKey)?.state !== state) {
@@ -246,6 +316,14 @@ function createStoppedResult(
     success: false,
     ...(exitCode === undefined ? {} : { exitCode }),
   };
+}
+
+function setCancelledRunState(commandKey: string, message: string) {
+  setRunState(commandKey, {
+    message,
+    state: 'cancelled',
+  });
+  clearTransientState(commandKey, 'cancelled');
 }
 
 function createFailureStatus(message: string, exitCode: number | null | undefined): StatusBarCommandRunStatus {

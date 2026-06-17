@@ -32,10 +32,6 @@ export function getStatusBarCommands(): StatusBarCommand[] {
   );
 }
 
-export function getCollapsedTreeGroups(): string[] {
-  return getWorkspacePreference('collapsedTreeGroups') ?? [];
-}
-
 export function getConfiguredPackageManager(): PackageManager {
   return vscode.workspace.getConfiguration(configurationSection).get<PackageManager>('packageManager', 'auto');
 }
@@ -57,9 +53,14 @@ export function getStatusBarAlignmentPreference(): StatusBarAlignmentPreference 
 export function getStatusBarDisplayMode(): StatusBarDisplayMode {
   return (
     getWorkspacePreference('statusBarDisplayMode') ??
-    vscode.workspace
-      .getConfiguration(configurationSection)
-      .get<StatusBarDisplayMode>('statusBarDisplayMode', 'expanded')
+    vscode.workspace.getConfiguration(configurationSection).get<StatusBarDisplayMode>('statusBarDisplayMode', 'compact')
+  );
+}
+
+export function shouldShowStatusBarScripts(): boolean {
+  return (
+    getWorkspacePreference('showStatusBarScripts') ??
+    vscode.workspace.getConfiguration(configurationSection).get<boolean>('showStatusBarScripts', true)
   );
 }
 
@@ -95,8 +96,8 @@ export async function updateStatusBarDisplayMode(value: StatusBarDisplayMode) {
   await updateWorkspacePreference('statusBarDisplayMode', value);
 }
 
-export async function updateCollapsedTreeGroups(value: string[]) {
-  await updateWorkspacePreference('collapsedTreeGroups', value);
+export async function updateShowStatusBarScripts(value: boolean) {
+  await updateWorkspacePreference('showStatusBarScripts', value);
 }
 
 export async function resetWorkspacePreferences() {
@@ -105,6 +106,7 @@ export async function resetWorkspacePreferences() {
     'collapsedTreeGroups',
     'favoriteScripts',
     'hideScripts',
+    'showStatusBarScripts',
     'statusBarAlignment',
     'statusBarCommands',
     'statusBarDisplayMode',

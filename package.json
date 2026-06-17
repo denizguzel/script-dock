@@ -1,7 +1,7 @@
 {
   "name": "script-dock",
   "displayName": "Script Dock",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "description": "Run workspace package scripts from a compact VS Code side panel.",
   "categories": [
     "Other"
@@ -55,8 +55,8 @@
       },
       {
         "command": "scriptDock.pickStatusBarCommand",
-        "title": "Run Status Bar Script",
-        "icon": "$(list-selection)"
+        "title": "Run Pinned Script",
+        "icon": "$(play-circle)"
       },
       {
         "command": "scriptDock.refreshScripts",
@@ -110,12 +110,12 @@
       },
       {
         "command": "scriptDock.addStatusBarCommand",
-        "title": "Show in Status Bar",
+        "title": "Pin Script",
         "icon": "$(pin)"
       },
       {
         "command": "scriptDock.removeStatusBarCommand",
-        "title": "Remove from Status Bar",
+        "title": "Unpin Script",
         "icon": "$(pinned)"
       },
       {
@@ -183,123 +183,8 @@
         {
           "id": "scriptDock.scripts",
           "name": "Scripts",
-          "icon": "$(terminal)"
-        }
-      ]
-    },
-    "menus": {
-      "view/title": [
-        {
-          "command": "scriptDock.refreshScripts",
-          "when": "view == scriptDock.scripts",
-          "group": "navigation@2"
-        },
-        {
-          "command": "scriptDock.searchScripts",
-          "when": "view == scriptDock.scripts",
-          "group": "navigation@1"
-        },
-        {
-          "command": "scriptDock.createScriptChain",
-          "when": "view == scriptDock.scripts",
-          "group": "actions@2"
-        },
-        {
-          "command": "scriptDock.addSuggestedChains",
-          "when": "view == scriptDock.scripts",
-          "group": "navigation@3"
-        },
-        {
-          "command": "scriptDock.showHiddenScript",
-          "when": "view == scriptDock.scripts",
-          "group": "actions@4"
-        },
-        {
-          "command": "scriptDock.resetWorkspacePreferences",
-          "when": "view == scriptDock.scripts",
-          "group": "manage@9"
-        },
-        {
-          "command": "scriptDock.moveStatusBarCommandsLeft",
-          "when": "view == scriptDock.scripts && scriptDock.statusBarAlignment == right",
-          "group": "manage@1"
-        },
-        {
-          "command": "scriptDock.moveStatusBarCommandsRight",
-          "when": "view == scriptDock.scripts && scriptDock.statusBarAlignment == left",
-          "group": "manage@1"
-        },
-        {
-          "command": "scriptDock.useCompactStatusBar",
-          "when": "view == scriptDock.scripts && scriptDock.statusBarDisplayMode != compact",
-          "group": "navigation@4"
-        },
-        {
-          "command": "scriptDock.useExpandedStatusBar",
-          "when": "view == scriptDock.scripts && scriptDock.statusBarDisplayMode == compact",
-          "group": "navigation@4"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "scriptDock.runScript",
-          "when": "view == scriptDock.scripts && viewItem =~ /\\bscript\\b/",
-          "group": "inline@1"
-        },
-        {
-          "command": "scriptDock.addFavorite",
-          "when": "view == scriptDock.scripts && viewItem =~ /\\bnotFavorite\\b/",
-          "group": "inline@2"
-        },
-        {
-          "command": "scriptDock.removeFavorite",
-          "when": "view == scriptDock.scripts && viewItem =~ /\\bfavorite\\b/",
-          "group": "inline@2"
-        },
-        {
-          "command": "scriptDock.addStatusBarCommand",
-          "when": "view == scriptDock.scripts && viewItem =~ /\\bnotStatusBar\\b/",
-          "group": "inline@3"
-        },
-        {
-          "command": "scriptDock.removeStatusBarCommand",
-          "when": "view == scriptDock.scripts && viewItem =~ /\\bstatusBar\\b/",
-          "group": "inline@3"
-        },
-        {
-          "command": "scriptDock.runStatusBarCommandInBackground",
-          "when": "view == scriptDock.scripts && viewItem =~ /\\bstatusBar\\b/ && viewItem =~ /\\bterminalMode\\b/",
-          "group": "inline@4"
-        },
-        {
-          "command": "scriptDock.runStatusBarCommandInTerminal",
-          "when": "view == scriptDock.scripts && viewItem =~ /\\bstatusBar\\b/ && viewItem =~ /\\bbackgroundMode\\b/",
-          "group": "inline@4"
-        },
-        {
-          "command": "scriptDock.stopBackgroundStatusBarCommand",
-          "when": "view == scriptDock.scripts && viewItem =~ /\\bstatusBarCommand\\b/ && viewItem =~ /\\brunning\\b/",
-          "group": "inline@5"
-        },
-        {
-          "command": "scriptDock.editScriptChain",
-          "when": "view == scriptDock.scripts && viewItem =~ /\\bstatusBarCommand\\b/",
-          "group": "inline@6"
-        },
-        {
-          "command": "scriptDock.enableAutoClose",
-          "when": "view == scriptDock.scripts && viewItem =~ /\\bnotAutoClose\\b/",
-          "group": "inline@7"
-        },
-        {
-          "command": "scriptDock.disableAutoClose",
-          "when": "view == scriptDock.scripts && viewItem =~ /\\bautoClose\\b/",
-          "group": "inline@7"
-        },
-        {
-          "command": "scriptDock.hideScript",
-          "when": "view == scriptDock.scripts && viewItem =~ /\\bscript\\b/",
-          "group": "visibility@1"
+          "type": "webview",
+          "icon": "$(play-circle)"
         }
       ]
     },
@@ -367,12 +252,12 @@
                   "background",
                   "terminal"
                 ],
-                "description": "How this status bar script runs. Background scripts show spinner/check/error states and write to the Script Dock output. Terminal scripts open a VS Code terminal. When omitted, scripts use terminal mode."
+                "description": "How this pinned script runs. Background scripts show spinner/check/error states and write to the Script Dock output. Terminal scripts open a VS Code terminal. When omitted, scripts use terminal mode."
               }
             }
           },
           "default": [],
-          "description": "Optional one-click scripts shown directly in the VS Code status bar. Scripts added from the UI are stored in VS Code workspace storage."
+          "description": "Pinned scripts shown at the top of the Script Dock panel and through the compact status bar picker. Scripts added from the UI are stored in VS Code workspace storage."
         },
         "scriptDock.statusBarAlignment": {
           "type": "string",
@@ -382,6 +267,11 @@
           ],
           "default": "left",
           "description": "Side of the VS Code status bar where script buttons are shown."
+        },
+        "scriptDock.showStatusBarScripts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether pinned scripts are shown in the VS Code status bar."
         },
         "scriptDock.statusBarPriority": {
           "type": "number",
@@ -399,13 +289,13 @@
             "compact",
             "expanded"
           ],
-          "default": "expanded",
-          "description": "Whether status bar scripts are shown as individual buttons or one compact Script Dock picker."
+          "default": "compact",
+          "description": "Whether pinned scripts are shown as individual status bar buttons or one compact Script Dock picker."
         },
         "scriptDock.statusBarOverflowLimit": {
           "type": "number",
           "default": 6,
-          "description": "Maximum expanded status bar script buttons before the rest move into a single overflow picker. Use 0 to disable overflow."
+          "description": "Maximum expanded status bar buttons before the rest move into a single overflow picker. Use 0 to disable overflow."
         },
         "scriptDock.includeNestedGitRepositories": {
           "type": "boolean",
