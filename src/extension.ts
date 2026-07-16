@@ -43,10 +43,26 @@ export function activate(context: vscode.ExtensionContext) {
     resetWorkspacePreferences: resetWorkspacePreferencesCommand,
     showHiddenScript,
   });
+  const packageJsonWatcher = vscode.workspace.createFileSystemWatcher('**/package.json');
+  let packageJsonReloadTimeout: ReturnType<typeof setTimeout> | undefined;
+  const reloadScriptsAfterPackageJsonChange = () => {
+    clearTimeout(packageJsonReloadTimeout);
+    packageJsonReloadTimeout = setTimeout(() => {
+      packageJsonReloadTimeout = undefined;
+      void scriptDockViewProvider.reload();
+    }, 150);
+  };
 
   context.subscriptions.push(
     statusBarController,
     scriptDockViewProvider,
+    packageJsonWatcher,
+    packageJsonWatcher.onDidChange(reloadScriptsAfterPackageJsonChange),
+    packageJsonWatcher.onDidCreate(reloadScriptsAfterPackageJsonChange),
+    packageJsonWatcher.onDidDelete(reloadScriptsAfterPackageJsonChange),
+    {
+      dispose: () => clearTimeout(packageJsonReloadTimeout),
+    },
     vscode.window.registerWebviewViewProvider('scriptDock.scripts', scriptDockViewProvider),
     { dispose: disposeCommandRunner },
     vscode.commands.registerCommand('scriptDock.refreshScripts', () => void scriptDockViewProvider.reload()),
