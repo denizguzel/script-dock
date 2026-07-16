@@ -4,7 +4,6 @@ import type { ScriptViewModel, VsCodeApi } from '../types';
 
 interface ScriptListSectionProps {
   onSelectScript: (script: ScriptViewModel) => void;
-  reorderable?: boolean;
   selectedScriptId: string | null;
   scripts: ScriptViewModel[];
   title: string;
@@ -13,7 +12,6 @@ interface ScriptListSectionProps {
 
 export function ScriptListSection({
   onSelectScript,
-  reorderable = false,
   scripts,
   selectedScriptId,
   title,
@@ -25,14 +23,11 @@ export function ScriptListSection({
 
   return (
     <Section count={scripts.length} title={title}>
-      {scripts.map((script, index) => (
+      {scripts.map((script) => (
         <ScriptRow
           key={script.id}
-          canMoveDown={index < scripts.length - 1}
-          canMoveUp={index > 0}
           isSelected={script.id === selectedScriptId}
           onSelect={onSelectScript}
-          reorderable={reorderable}
           script={script}
           vscode={vscode}
         />

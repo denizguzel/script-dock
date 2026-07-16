@@ -5,7 +5,7 @@ export interface PackageJson {
 
 export type PackageManager = 'auto' | 'bun' | 'npm' | 'pnpm' | 'yarn';
 export type ResolvedPackageManager = Exclude<PackageManager, 'auto'>;
-export type ScriptFilter = 'all' | 'favorites' | 'hidden' | 'pinned' | 'runnable';
+export type ScriptFilter = 'all' | 'hidden' | 'pinned' | 'runnable';
 export type StatusBarAlignmentPreference = 'left' | 'right';
 export type StatusBarCommandExecutionMode = 'background' | 'terminal';
 export type StatusBarDisplayMode = 'compact' | 'expanded';
@@ -43,7 +43,6 @@ export interface StatusBarCommandRunStatus {
 export interface WorkspacePreferences {
   autoCloseScripts: string[];
   collapsedTreeGroups: string[];
-  favoriteScripts: string[];
   hideScripts: string[];
   showStatusBarScripts: boolean;
   statusBarAlignment: StatusBarAlignmentPreference;

@@ -1,48 +1,22 @@
-import {
-  ArrowDown,
-  ArrowUp,
-  Cpu,
-  Eye,
-  EyeOff,
-  LogOut,
-  MoreHorizontal,
-  Pin,
-  PinOff,
-  SquareTerminal,
-  Star,
-} from 'lucide-react';
+import { Cpu, Eye, EyeOff, LogOut, MoreHorizontal, Pin, PinOff, SquareTerminal } from 'lucide-react';
 import { IconButton } from '../../components/ui';
 import { cn } from '../../components/ui/utils';
 import { getRunIcon, getRunTitle, getRunToneClass } from '../run-state';
 import type { ExecutionMode, ScriptViewModel, VsCodeApi } from '../types';
 
 interface ScriptRowProps {
-  canMoveDown?: boolean;
-  canMoveUp?: boolean;
   isSelected: boolean;
   onSelect: (script: ScriptViewModel) => void;
-  reorderable?: boolean;
   script: ScriptViewModel;
   vscode: VsCodeApi;
 }
 
-export function ScriptRow({
-  canMoveDown = false,
-  canMoveUp = false,
-  isSelected,
-  onSelect,
-  reorderable = false,
-  script,
-  vscode,
-}: ScriptRowProps) {
+export function ScriptRow({ isSelected, onSelect, script, vscode }: ScriptRowProps) {
   const nextMode: ExecutionMode = script.executionMode === 'background' ? 'terminal' : 'background';
   const ModeIcon = script.executionMode === 'background' ? Cpu : SquareTerminal;
   const RunIcon = getRunIcon(script.runStatus.state);
   const runScript = () => {
     vscode.postMessage({ scriptId: script.id, type: 'runScript' });
-  };
-  const toggleFavorite = () => {
-    vscode.postMessage({ enabled: !script.isFavorite, scriptId: script.id, type: 'setFavorite' });
   };
   const togglePinned = () => {
     vscode.postMessage({ enabled: !script.isPinned, scriptId: script.id, type: 'setPinned' });
@@ -55,12 +29,6 @@ export function ScriptRow({
   };
   const hideScript = () => {
     vscode.postMessage({ enabled: !script.isHidden, scriptId: script.id, type: 'setHidden' });
-  };
-  const moveFavoriteUp = () => {
-    vscode.postMessage({ scriptId: script.id, type: 'moveFavoriteUp' });
-  };
-  const moveFavoriteDown = () => {
-    vscode.postMessage({ scriptId: script.id, type: 'moveFavoriteDown' });
   };
   const selectScript = () => {
     onSelect(script);
@@ -111,15 +79,6 @@ export function ScriptRow({
         </div>
         <div className="flex items-center gap-0.5">
           <IconButton
-            className={cn(script.isFavorite ? 'text-[var(--vscode-charts-yellow)]' : '')}
-            icon={Star}
-            label={script.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-            onClick={(event) => {
-              event.stopPropagation();
-              toggleFavorite();
-            }}
-          />
-          <IconButton
             className={cn(script.isPinned ? 'text-[var(--vscode-testing-iconPassed)]' : '')}
             icon={script.isPinned ? PinOff : Pin}
             label={script.isPinned ? 'Unpin script' : 'Pin script'}
@@ -140,17 +99,6 @@ export function ScriptRow({
       </div>
       {isSelected ? (
         <div className="ml-8 flex min-w-0 flex-wrap items-center gap-0.5">
-          {reorderable ? (
-            <>
-              <IconButton disabled={!canMoveUp} icon={ArrowUp} label="Move favorite up" onClick={moveFavoriteUp} />
-              <IconButton
-                disabled={!canMoveDown}
-                icon={ArrowDown}
-                label="Move favorite down"
-                onClick={moveFavoriteDown}
-              />
-            </>
-          ) : null}
           <IconButton
             disabled={!script.isPinned}
             icon={ModeIcon}

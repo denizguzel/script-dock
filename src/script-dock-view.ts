@@ -37,7 +37,6 @@ interface ScriptViewModel {
   command: string;
   executionMode: StatusBarCommandExecutionMode | null;
   id: string;
-  isFavorite: boolean;
   isHidden: boolean;
   isPinned: boolean;
   name: string;
@@ -62,7 +61,6 @@ interface ScriptDockState {
     kind: 'allHidden' | 'none' | 'noPackageJson' | 'noScripts' | 'noWorkspace';
     message: string;
   };
-  favoriteScripts: ScriptViewModel[];
   hiddenScripts: ScriptViewModel[];
   hiddenScriptCount: number;
   isLoading: boolean;
@@ -85,13 +83,10 @@ type ScriptDockMessage =
   | { type: 'exportProfile' }
   | { type: 'hideScript'; scriptId?: string }
   | { type: 'importProfile' }
-  | { type: 'moveFavoriteDown'; scriptId?: string }
-  | { type: 'moveFavoriteUp'; scriptId?: string }
   | { type: 'movePinnedDown'; key?: string }
   | { type: 'movePinnedUp'; key?: string }
   | { type: 'ready' }
   | { type: 'refresh' }
-  | { type: 'reorderFavorites'; scriptIds?: string[] }
   | { type: 'reorderPinned'; keys?: string[] }
   | { type: 'removePinned'; key?: string }
   | { type: 'resetPreferences' }
@@ -100,7 +95,6 @@ type ScriptDockMessage =
   | { type: 'runScript'; scriptId?: string }
   | { type: 'selectPinned'; key?: string }
   | { type: 'setAutoClose'; enabled?: boolean; scriptId?: string }
-  | { type: 'setFavorite'; enabled?: boolean; scriptId?: string }
   | { filter?: ScriptFilter; type: 'setFilter' }
   | { type: 'setHidden'; enabled?: boolean; scriptId?: string }
   | { type: 'setPinned'; enabled?: boolean; scriptId?: string }
@@ -269,12 +263,6 @@ export class ScriptDockViewProvider implements vscode.WebviewViewProvider, vscod
       return;
     }
 
-    if (message.type === 'setFavorite') {
-      await this.updateScriptPreference('favoriteScripts', message.scriptId, message.enabled === true);
-      this.refresh();
-      return;
-    }
-
     if (message.type === 'setAutoClose') {
       await this.updateScriptPreference('autoCloseScripts', message.scriptId, message.enabled === true);
       this.refresh();
@@ -321,18 +309,6 @@ export class ScriptDockViewProvider implements vscode.WebviewViewProvider, vscod
         await updatePinnedScriptExecutionMode(command, message.mode);
       }
 
-      this.refresh();
-      return;
-    }
-
-    if (message.type === 'reorderFavorites' && Array.isArray(message.scriptIds)) {
-      await this.reorderFavorites(message.scriptIds);
-      this.refresh();
-      return;
-    }
-
-    if (message.type === 'moveFavoriteUp' || message.type === 'moveFavoriteDown') {
-      await this.moveFavorite(message.scriptId, message.type === 'moveFavoriteUp' ? -1 : 1);
       this.refresh();
       return;
     }
@@ -404,7 +380,6 @@ export class ScriptDockViewProvider implements vscode.WebviewViewProvider, vscod
   }
 
   private createState(): ScriptDockState {
-    const favoriteIds = new Set(getConfiguredScripts('favoriteScripts'));
     const hiddenIds = new Set(getConfiguredScripts('hideScripts'));
     const autoCloseIds = new Set(getConfiguredScripts('autoCloseScripts'));
     const commands = getStatusBarCommands();
@@ -419,7 +394,6 @@ export class ScriptDockViewProvider implements vscode.WebviewViewProvider, vscod
       createScriptViewModel(script, {
         autoCloseIds,
         commandScriptKeys,
-        favoriteIds,
         hiddenIds,
         statusBarCommands: commands,
       }),
@@ -427,14 +401,13 @@ export class ScriptDockViewProvider implements vscode.WebviewViewProvider, vscod
     const visibleScripts = scripts.filter((script) => !script.isHidden);
 
     return {
-      allScripts: visibleScripts.filter((script) => !script.isFavorite),
+      allScripts: visibleScripts,
       empty: createEmptyState({
         allScriptCount: this.allScripts.length,
         isLoading: this.isLoading,
         packageRootCount: this.packageRoots.length,
         visibleScriptCount: visibleScripts.length,
       }),
-      favoriteScripts: visibleScripts.filter((script) => script.isFavorite),
       hiddenScripts: scripts.filter((script) => script.isHidden),
       hiddenScriptCount: hiddenIds.size,
       isLoading: this.isLoading,
@@ -494,7 +467,7 @@ export class ScriptDockViewProvider implements vscode.WebviewViewProvider, vscod
   }
 
   private async updateScriptPreference(
-    key: 'autoCloseScripts' | 'favoriteScripts' | 'hideScripts',
+    key: 'autoCloseScripts' | 'hideScripts',
     scriptId: string | undefined,
     enabled: boolean,
   ) {
@@ -514,14 +487,6 @@ export class ScriptDockViewProvider implements vscode.WebviewViewProvider, vscod
     await updateScriptListPreference(key, [...currentSet]);
   }
 
-  private async reorderFavorites(scriptIds: string[]) {
-    const currentFavorites = getConfiguredScripts('favoriteScripts');
-    const nextOrderedFavorites = scriptIds.filter((scriptId) => currentFavorites.includes(scriptId));
-    const remainingFavorites = currentFavorites.filter((scriptId) => !nextOrderedFavorites.includes(scriptId));
-
-    await updateScriptListPreference('favoriteScripts', [...nextOrderedFavorites, ...remainingFavorites]);
-  }
-
   private async reorderPinned(keys: string[]) {
     const commands = getStatusBarCommands();
     const commandByKey = new Map(commands.map((command) => [createStatusBarCommandKey(command), command]));
@@ -531,17 +496,6 @@ export class ScriptDockViewProvider implements vscode.WebviewViewProvider, vscod
     const remainingCommands = commands.filter((command) => !keys.includes(createStatusBarCommandKey(command)));
 
     await updateStatusBarCommands([...nextCommands, ...remainingCommands]);
-  }
-
-  private async moveFavorite(scriptId: string | undefined, delta: -1 | 1) {
-    if (!scriptId) {
-      return;
-    }
-
-    await updateScriptListPreference(
-      'favoriteScripts',
-      moveStringItem(getConfiguredScripts('favoriteScripts'), scriptId, delta),
-    );
   }
 
   private async movePinned(key: string | undefined, delta: -1 | 1) {
@@ -696,7 +650,6 @@ function createScriptViewModel(
   options: {
     autoCloseIds: Set<string>;
     commandScriptKeys: Set<string | undefined>;
-    favoriteIds: Set<string>;
     hiddenIds: Set<string>;
     statusBarCommands: StatusBarCommand[];
   },
@@ -716,7 +669,6 @@ function createScriptViewModel(
     command: script.command,
     executionMode: singleCommand ? getStatusBarExecutionMode(singleCommand) : null,
     id: script.id,
-    isFavorite: options.favoriteIds.has(script.id),
     isHidden: options.hiddenIds.has(script.id),
     isPinned: options.commandScriptKeys.has(createSingleScriptKey(script.packageRoot.packagePath, script.name)),
     name: script.name,
@@ -808,7 +760,7 @@ function isStatusBarDisplayMode(value: unknown): value is StatusBarDisplayMode {
 }
 
 function isScriptFilter(value: unknown): value is ScriptFilter {
-  return value === 'all' || value === 'favorites' || value === 'hidden' || value === 'pinned' || value === 'runnable';
+  return value === 'all' || value === 'hidden' || value === 'pinned' || value === 'runnable';
 }
 
 function hasPinnedCommandKey(
@@ -864,7 +816,6 @@ function formatPackagePath(packagePath?: string): string {
 
 interface WorkspaceProfile {
   autoCloseScripts: string[];
-  favoriteScripts: string[];
   hideScripts: string[];
   showStatusBarScripts: boolean;
   statusBarAlignment: StatusBarAlignmentPreference;
@@ -882,7 +833,6 @@ interface WorkspaceProfileValidationResult {
 function createWorkspaceProfile(): WorkspaceProfile {
   return {
     autoCloseScripts: getConfiguredScripts('autoCloseScripts'),
-    favoriteScripts: getConfiguredScripts('favoriteScripts'),
     hideScripts: getConfiguredScripts('hideScripts'),
     showStatusBarScripts: shouldShowStatusBarScripts(),
     statusBarAlignment: getStatusBarAlignmentPreference(),
@@ -897,7 +847,6 @@ function validateWorkspaceProfile(value: unknown, allScripts: ScriptEntry[]): Wo
     return { invalidPinnedCount: 0, missingScriptCount: 0 };
   }
 
-  const favoriteScripts = readStringArray(value['favoriteScripts']);
   const hideScripts = readStringArray(value['hideScripts']);
   const autoCloseScripts = readStringArray(value['autoCloseScripts']);
   const statusBarCommands = readStatusBarCommands(value['statusBarCommands']);
@@ -906,7 +855,6 @@ function validateWorkspaceProfile(value: unknown, allScripts: ScriptEntry[]): Wo
   const statusBarDisplayMode = value['statusBarDisplayMode'];
 
   if (
-    !favoriteScripts ||
     !hideScripts ||
     !autoCloseScripts ||
     !statusBarCommands ||
@@ -922,16 +870,10 @@ function validateWorkspaceProfile(value: unknown, allScripts: ScriptEntry[]): Wo
     allScripts.map((script) => createSingleScriptKey(script.packageRoot.packagePath, script.name)),
   );
   const filterScriptIds = (scriptIds: string[]) => scriptIds.filter((scriptId) => validScriptIds.has(scriptId));
-  const validFavoriteScripts = filterScriptIds(favoriteScripts);
   const validHideScripts = filterScriptIds(hideScripts);
   const validAutoCloseScripts = filterScriptIds(autoCloseScripts);
   const missingPreferenceCount =
-    favoriteScripts.length -
-    validFavoriteScripts.length +
-    hideScripts.length -
-    validHideScripts.length +
-    autoCloseScripts.length -
-    validAutoCloseScripts.length;
+    hideScripts.length - validHideScripts.length + autoCloseScripts.length - validAutoCloseScripts.length;
   let invalidPinnedCount = 0;
   let missingPinnedScriptCount = 0;
   const validStatusBarCommands = statusBarCommands.filter((command) => {
@@ -955,7 +897,6 @@ function validateWorkspaceProfile(value: unknown, allScripts: ScriptEntry[]): Wo
     missingScriptCount: missingPreferenceCount + missingPinnedScriptCount,
     profile: {
       autoCloseScripts: validAutoCloseScripts,
-      favoriteScripts: validFavoriteScripts,
       hideScripts: validHideScripts,
       showStatusBarScripts,
       statusBarAlignment,
@@ -969,7 +910,6 @@ function validateWorkspaceProfile(value: unknown, allScripts: ScriptEntry[]): Wo
 async function applyWorkspaceProfile(profile: WorkspaceProfile) {
   await Promise.all([
     updateScriptListPreference('autoCloseScripts', profile.autoCloseScripts),
-    updateScriptListPreference('favoriteScripts', profile.favoriteScripts),
     updateScriptListPreference('hideScripts', profile.hideScripts),
     updateShowStatusBarScripts(profile.showStatusBarScripts),
     updateStatusBarAlignment(profile.statusBarAlignment),

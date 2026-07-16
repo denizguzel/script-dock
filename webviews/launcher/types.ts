@@ -1,6 +1,6 @@
 export type ExecutionMode = 'background' | 'terminal';
 export type RunState = 'cancelled' | 'failed' | 'idle' | 'running' | 'success';
-export type ScriptFilter = 'all' | 'favorites' | 'hidden' | 'pinned' | 'runnable';
+export type ScriptFilter = 'all' | 'hidden' | 'pinned' | 'runnable';
 export type StatusBarAlignment = 'left' | 'right';
 export type StatusBarDisplayMode = 'compact' | 'expanded';
 
@@ -15,7 +15,6 @@ export interface ScriptViewModel {
   command: string;
   executionMode: ExecutionMode | null;
   id: string;
-  isFavorite: boolean;
   isHidden: boolean;
   isPinned: boolean;
   name: string;
@@ -40,7 +39,6 @@ export interface LauncherState {
     kind: 'allHidden' | 'none' | 'noPackageJson' | 'noScripts' | 'noWorkspace';
     message: string;
   };
-  favoriteScripts: ScriptViewModel[];
   hiddenScripts: ScriptViewModel[];
   hiddenScriptCount: number;
   isLoading: boolean;

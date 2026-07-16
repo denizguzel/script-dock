@@ -49,11 +49,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "scriptDock.pickFavoriteScript",
-        "title": "Run Favorite Script",
-        "icon": "$(terminal)"
-      },
-      {
         "command": "scriptDock.pickStatusBarCommand",
         "title": "Run Pinned Script",
         "icon": "$(play-circle)"
@@ -97,16 +92,6 @@
         "command": "scriptDock.runScript",
         "title": "Run Script",
         "icon": "$(play)"
-      },
-      {
-        "command": "scriptDock.addFavorite",
-        "title": "Add to Favorites",
-        "icon": "$(star-empty)"
-      },
-      {
-        "command": "scriptDock.removeFavorite",
-        "title": "Remove from Favorites",
-        "icon": "$(star-full)"
       },
       {
         "command": "scriptDock.addStatusBarCommand",
@@ -203,14 +188,6 @@
           "default": "auto",
           "description": "Package manager used when running scripts."
         },
-        "scriptDock.favoriteScripts": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [],
-          "description": "Optional script names pinned at the top of the scripts panel. Scripts added from the UI are stored in VS Code workspace storage."
-        },
         "scriptDock.statusBarCommands": {
           "type": "array",
           "items": {
@@ -265,7 +242,7 @@
             "left",
             "right"
           ],
-          "default": "left",
+          "default": "right",
           "description": "Side of the VS Code status bar where script buttons are shown."
         },
         "scriptDock.showStatusBarScripts": {
@@ -289,7 +266,7 @@
             "compact",
             "expanded"
           ],
-          "default": "compact",
+          "default": "expanded",
           "description": "Whether pinned scripts are shown as individual status bar buttons or one compact Script Dock picker."
         },
         "scriptDock.statusBarOverflowLimit": {

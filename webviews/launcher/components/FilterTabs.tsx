@@ -10,7 +10,6 @@ interface FilterTabsProps {
 const filters: Array<{ label: string; value: ScriptFilter }> = [
   { label: 'All', value: 'all' },
   { label: 'Pinned', value: 'pinned' },
-  { label: 'Favorites', value: 'favorites' },
   { label: 'Runnable', value: 'runnable' },
   { label: 'Hidden', value: 'hidden' },
 ];
