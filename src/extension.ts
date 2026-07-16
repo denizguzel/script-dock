@@ -6,7 +6,6 @@ import {
   editScriptChain,
   moveStatusBarCommandsLeft,
   moveStatusBarCommandsRight,
-  pickAndRunFavoriteScript,
   pickAndRunStatusBarCommand,
   removeStatusBarCommand,
   resetWorkspacePreferencesCommand,
@@ -54,7 +53,6 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('scriptDock.runScript', runScript),
     vscode.commands.registerCommand('scriptDock.runStatusBarCommand', runStatusBarCommand),
     vscode.commands.registerCommand('scriptDock.pickStatusBarCommand', pickAndRunStatusBarCommand),
-    vscode.commands.registerCommand('scriptDock.pickFavoriteScript', pickAndRunFavoriteScript),
     vscode.commands.registerCommand('scriptDock.searchScripts', searchScripts),
     vscode.commands.registerCommand('scriptDock.createScriptChain', () => createScriptChain(context.extensionUri)),
     vscode.commands.registerCommand('scriptDock.editScriptChain', (item?: unknown) =>
@@ -62,12 +60,6 @@ export function activate(context: vscode.ExtensionContext) {
     ),
     vscode.commands.registerCommand('scriptDock.addSuggestedChains', addSuggestedChains),
     vscode.commands.registerCommand('scriptDock.resetWorkspacePreferences', resetWorkspacePreferencesCommand),
-    vscode.commands.registerCommand('scriptDock.addFavorite', (script?: ScriptEntry) =>
-      updateScriptListSetting('favoriteScripts', script, 'add'),
-    ),
-    vscode.commands.registerCommand('scriptDock.removeFavorite', (script?: ScriptEntry) =>
-      updateScriptListSetting('favoriteScripts', script, 'remove'),
-    ),
     vscode.commands.registerCommand('scriptDock.addStatusBarCommand', addStatusBarCommand),
     vscode.commands.registerCommand('scriptDock.removeStatusBarCommand', removeStatusBarCommand),
     vscode.commands.registerCommand('scriptDock.runStatusBarCommandInBackground', (script?: ScriptEntry) =>

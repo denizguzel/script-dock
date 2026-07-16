@@ -73,12 +73,6 @@ export async function getVisibleScripts(workspaceFolder: vscode.WorkspaceFolder)
   return getVisibleScriptsFromScripts(scripts);
 }
 
-export function getFavoriteScripts(scripts: ScriptEntry[]): ScriptEntry[] {
-  const favoriteNames = new Set(getConfiguredScripts('favoriteScripts'));
-
-  return scripts.filter((script) => favoriteNames.has(script.id));
-}
-
 export function createScriptId(packagePath: string, scriptName: string): string {
   return packagePath === '.' ? scriptName : `${packagePath}#${scriptName}`;
 }
@@ -94,25 +88,7 @@ function normalizePackagePath(packagePath: string): string {
 }
 
 function sortScripts(scripts: ScriptEntry[]): ScriptEntry[] {
-  const favorites = getConfiguredScripts('favoriteScripts');
-  const favoriteIndex = new Map(favorites.map((scriptId, index) => [scriptId, index]));
-
   return scripts.sort((left, right) => {
-    const leftFavorite = favoriteIndex.get(left.id);
-    const rightFavorite = favoriteIndex.get(right.id);
-
-    if (leftFavorite !== undefined && rightFavorite !== undefined) {
-      return leftFavorite - rightFavorite;
-    }
-
-    if (leftFavorite !== undefined) {
-      return -1;
-    }
-
-    if (rightFavorite !== undefined) {
-      return 1;
-    }
-
     if (left.packageRoot.packagePath !== right.packageRoot.packagePath) {
       return left.packageRoot.packagePath.localeCompare(right.packageRoot.packagePath);
     }

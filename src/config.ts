@@ -9,7 +9,7 @@ import type {
 
 export const configurationSection = 'scriptDock';
 
-type ScriptListPreferenceKey = 'autoCloseScripts' | 'favoriteScripts' | 'hideScripts';
+type ScriptListPreferenceKey = 'autoCloseScripts' | 'hideScripts';
 type PreferenceKey = keyof WorkspacePreferences;
 
 let workspaceState: vscode.Memento | undefined;
@@ -21,7 +21,7 @@ export function initializeWorkspacePreferences(state: vscode.Memento) {
   workspaceState = state;
 }
 
-export function getConfiguredScripts(key: 'autoCloseScripts' | 'favoriteScripts' | 'hideScripts'): string[] {
+export function getConfiguredScripts(key: ScriptListPreferenceKey): string[] {
   return getWorkspacePreference(key) ?? vscode.workspace.getConfiguration(configurationSection).get<string[]>(key, []);
 }
 
@@ -41,7 +41,7 @@ export function getStatusBarAlignment(): vscode.StatusBarAlignment {
     getWorkspacePreference('statusBarAlignment') ??
     vscode.workspace
       .getConfiguration(configurationSection)
-      .get<StatusBarAlignmentPreference>('statusBarAlignment', 'left');
+      .get<StatusBarAlignmentPreference>('statusBarAlignment', 'right');
 
   return alignment === 'right' ? vscode.StatusBarAlignment.Right : vscode.StatusBarAlignment.Left;
 }
@@ -53,7 +53,9 @@ export function getStatusBarAlignmentPreference(): StatusBarAlignmentPreference 
 export function getStatusBarDisplayMode(): StatusBarDisplayMode {
   return (
     getWorkspacePreference('statusBarDisplayMode') ??
-    vscode.workspace.getConfiguration(configurationSection).get<StatusBarDisplayMode>('statusBarDisplayMode', 'compact')
+    vscode.workspace
+      .getConfiguration(configurationSection)
+      .get<StatusBarDisplayMode>('statusBarDisplayMode', 'expanded')
   );
 }
 
@@ -104,7 +106,6 @@ export async function resetWorkspacePreferences() {
   const preferenceKeys: PreferenceKey[] = [
     'autoCloseScripts',
     'collapsedTreeGroups',
-    'favoriteScripts',
     'hideScripts',
     'showStatusBarScripts',
     'statusBarAlignment',

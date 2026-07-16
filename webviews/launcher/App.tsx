@@ -23,33 +23,24 @@ export function App({ initialState, vscode }: AppProps) {
   const [state, setState] = useState(initialState);
   const selectedPinnedScript = useMemo(() => getSelectedPinnedScript(state), [state]);
   const pinnedScripts = useMemo(() => filterPinnedScripts(state.pinnedScripts, search), [state.pinnedScripts, search]);
-  const favoriteScripts = useMemo(() => filterScripts(state.favoriteScripts, search), [state.favoriteScripts, search]);
-  const favoriteScriptsWithoutPinned = useMemo(
-    () => favoriteScripts.filter((script) => !script.isPinned),
-    [favoriteScripts],
+  const allScripts = useMemo(
+    () =>
+      filterScripts(
+        state.allScripts.filter((script) => !script.isPinned),
+        search,
+      ),
+    [state.allScripts, search],
   );
-  const allScripts = useMemo(() => filterScripts(state.allScripts, search), [state.allScripts, search]);
   const hiddenScripts = useMemo(() => filterScripts(state.hiddenScripts, search), [state.hiddenScripts, search]);
-  const runnableScripts = useMemo(
-    () => filterScripts([...state.favoriteScripts, ...state.allScripts], search),
-    [state.allScripts, state.favoriteScripts, search],
-  );
+  const runnableScripts = useMemo(() => filterScripts(state.allScripts, search), [state.allScripts, search]);
   const filterCounts = useMemo(
     () => ({
-      all: pinnedScripts.length + favoriteScriptsWithoutPinned.length + allScripts.length,
-      favorites: favoriteScripts.length,
+      all: pinnedScripts.length + allScripts.length,
       hidden: hiddenScripts.length,
       pinned: pinnedScripts.length,
       runnable: runnableScripts.length,
     }),
-    [
-      allScripts.length,
-      favoriteScripts.length,
-      favoriteScriptsWithoutPinned.length,
-      hiddenScripts.length,
-      pinnedScripts.length,
-      runnableScripts.length,
-    ],
+    [allScripts.length, hiddenScripts.length, pinnedScripts.length, runnableScripts.length],
   );
 
   useEffect(() => {
@@ -73,14 +64,14 @@ export function App({ initialState, vscode }: AppProps) {
       return;
     }
 
-    const nextSelectedScript = [...state.favoriteScripts, ...state.allScripts, ...state.hiddenScripts].find(
+    const nextSelectedScript = [...state.allScripts, ...state.hiddenScripts].find(
       (script) => script.id === selectedScript.id,
     );
 
     if (nextSelectedScript !== selectedScript) {
       setSelectedScript(nextSelectedScript);
     }
-  }, [selectedScript, state.allScripts, state.favoriteScripts, state.hiddenScripts]);
+  }, [selectedScript, state.allScripts, state.hiddenScripts]);
 
   const setPersistedFilter = (nextFilter: ScriptFilter) => {
     setFilter(nextFilter);
@@ -110,14 +101,12 @@ export function App({ initialState, vscode }: AppProps) {
                 filter === 'all' &&
                 search.trim().length === 0 &&
                 state.pinnedScripts.length === 0 &&
-                state.favoriteScripts.length === 0 &&
                 state.allScripts.length > 0
               }
               vscode={vscode}
             />
             <ScriptSections
               allScripts={allScripts}
-              favoriteScripts={favoriteScripts}
               filter={filter}
               hiddenScripts={hiddenScripts}
               pinnedScripts={pinnedScripts}
@@ -136,7 +125,6 @@ export function App({ initialState, vscode }: AppProps) {
 
 function ScriptSections(props: {
   allScripts: ScriptViewModel[];
-  favoriteScripts: ScriptViewModel[];
   filter: ScriptFilter;
   hiddenScripts: ScriptViewModel[];
   pinnedScripts: LauncherState['pinnedScripts'];
@@ -155,23 +143,6 @@ function ScriptSections(props: {
       <PinnedScriptsSection
         pinnedScripts={props.pinnedScripts}
         selectedKey={props.selectedPinnedKey}
-        vscode={props.vscode}
-      />
-    );
-  }
-
-  if (props.filter === 'favorites') {
-    if (props.favoriteScripts.length === 0) {
-      return <EmptyListMessage message="No favorite scripts match this view." />;
-    }
-
-    return (
-      <ScriptListSection
-        reorderable
-        onSelectScript={props.onSelectScript}
-        scripts={props.favoriteScripts}
-        selectedScriptId={props.selectedScriptId}
-        title="Favorites"
         vscode={props.vscode}
       />
     );
@@ -214,14 +185,6 @@ function ScriptSections(props: {
       <PinnedScriptsSection
         pinnedScripts={props.pinnedScripts}
         selectedKey={props.selectedPinnedKey}
-        vscode={props.vscode}
-      />
-      <ScriptListSection
-        reorderable
-        onSelectScript={props.onSelectScript}
-        scripts={props.favoriteScripts.filter((script) => !script.isPinned)}
-        selectedScriptId={props.selectedScriptId}
-        title="Favorites"
         vscode={props.vscode}
       />
       <ScriptListSection

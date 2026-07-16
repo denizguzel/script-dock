@@ -18,7 +18,7 @@ import {
 } from './config';
 import { resolvePackageManager } from './package-manager';
 import { showScriptChainEditor } from './script-chain-editor';
-import { getAllScripts, getFavoriteScripts, getPackageRoots, getVisibleScripts } from './scripts';
+import { getAllScripts, getPackageRoots, getVisibleScripts } from './scripts';
 import { createStatusBarCommandKey, getStatusBarCommandScripts, getStatusBarExecutionMode } from './status-bar-command';
 import { createTerminalCommand, runTerminalCommand } from './terminal';
 import type { PackageRoot, ScriptEntry, StatusBarCommand, StatusBarCommandExecutionMode } from './types';
@@ -132,14 +132,6 @@ export async function runStatusBarCommand(command: StatusBarCommand, options: { 
     name: `${packageManager} ${command.label}`,
   });
   trackStatusBarCommandTerminal(command, terminal);
-}
-
-export async function pickAndRunFavoriteScript() {
-  const scriptItem = await pickScript({ favoritesOnly: true });
-
-  if (scriptItem) {
-    await runScript(scriptItem);
-  }
 }
 
 export async function searchScripts() {
@@ -457,7 +449,7 @@ export async function showHiddenScript() {
 }
 
 export async function updateScriptListSetting(
-  key: 'autoCloseScripts' | 'favoriteScripts' | 'hideScripts',
+  key: 'autoCloseScripts' | 'hideScripts',
   script: ScriptEntry | undefined,
   action: 'add' | 'remove',
 ) {
@@ -532,9 +524,7 @@ export async function updatePinnedScriptExecutionMode(
   await updateStatusBarCommands(nextCommands);
 }
 
-async function pickScript(
-  options: { favoritesOnly?: boolean; placeHolder?: string } = {},
-): Promise<ScriptEntry | undefined> {
+async function pickScript(options: { placeHolder?: string } = {}): Promise<ScriptEntry | undefined> {
   const workspaceFolder = getWorkspaceFolder();
 
   if (!workspaceFolder) {
@@ -542,21 +532,17 @@ async function pickScript(
   }
 
   const visibleScripts = await getVisibleScripts(workspaceFolder);
-  const scripts = options.favoritesOnly ? getFavoriteScripts(visibleScripts) : visibleScripts;
-
-  if (scripts.length === 0) {
+  if (visibleScripts.length === 0) {
     vscode.window.showInformationMessage('No package scripts are available for this workspace.');
     return undefined;
   }
 
   const selected = await vscode.window.showQuickPick(
-    scripts.map((script) => createScriptQuickPickItem(script)),
+    visibleScripts.map((script) => createScriptQuickPickItem(script)),
     {
       matchOnDescription: true,
       matchOnDetail: true,
-      placeHolder:
-        options.placeHolder ??
-        (options.favoritesOnly ? 'Run a favorite package script' : 'Select a package script to run'),
+      placeHolder: options.placeHolder ?? 'Select a package script to run',
     },
   );
 
