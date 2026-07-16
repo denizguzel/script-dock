@@ -1,7 +1,7 @@
 {
   "name": "script-dock",
   "displayName": "Script Dock",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Run workspace package scripts from a compact VS Code side panel.",
   "categories": [
     "Other"
@@ -29,22 +29,22 @@
     "watch": "tsc --watch -p tsconfig.json"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "4.3.1",
-    "@types/node": "25.9.3",
+    "@tailwindcss/vite": "4.3.2",
+    "@types/node": "26.1.1",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
-    "@types/vscode": "1.110.0",
-    "@vitejs/plugin-react": "6.0.2",
+    "@types/vscode": "1.125.0",
+    "@vitejs/plugin-react": "6.0.3",
     "@vscode/vsce": "3.9.2",
-    "knip": "6.16.1",
-    "lucide-react": "1.18.0",
-    "oxfmt": "0.54.0",
-    "oxlint": "1.69.0",
+    "knip": "6.27.0",
+    "lucide-react": "1.24.0",
+    "oxfmt": "0.59.0",
+    "oxlint": "1.74.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "tailwindcss": "4.3.1",
-    "typescript": "6.0.3",
-    "vite": "8.0.16"
+    "tailwindcss": "4.3.2",
+    "typescript": "7.0.2",
+    "vite": "8.1.5"
   },
   "contributes": {
     "commands": [
