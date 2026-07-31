@@ -2,6 +2,5 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": ["webviews/launcher/main.tsx", "webviews/script-chain-editor/main.tsx"],
   "ignore": [],
-  "ignoreDependencies": ["tailwindcss"],
-  "project": ["src/**/*.ts", "webviews/**/*.{d.ts,ts,tsx}"]
+  "project": ["src/**/*.ts", "webviews/**/*.{css,d.ts,ts,tsx}"]
 }
