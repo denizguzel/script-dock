@@ -2,5 +2,6 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": ["webviews/launcher/main.tsx", "webviews/script-chain-editor/main.tsx"],
   "ignore": [],
+  "ignoreDependencies": ["vscode"],
   "project": ["src/**/*.ts", "webviews/**/*.{css,d.ts,ts,tsx}"]
 }
