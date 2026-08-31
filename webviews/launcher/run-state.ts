@@ -18,9 +18,9 @@ export function getRunIcon(runState: RunState | undefined): ComponentType<SVGPro
   return Play;
 }
 
-export function getRunTitle(command: PinnedScriptViewModel | undefined): string {
+export function getRunTitle(command: PinnedScriptViewModel | undefined, target = 'pinned script'): string {
   if (!command) {
-    return 'Run pinned script';
+    return `Run ${target}`;
   }
 
   if (command.runStatus.state === 'running') {
@@ -31,7 +31,7 @@ export function getRunTitle(command: PinnedScriptViewModel | undefined): string 
     return 'Run again';
   }
 
-  return 'Run pinned script';
+  return `Run ${target}`;
 }
 
 export function describeExecutionMode(mode: ExecutionMode): string {

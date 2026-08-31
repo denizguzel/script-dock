@@ -1,8 +1,21 @@
-import { ArrowDown, ArrowUp, Cpu, Pencil, PinOff, SquareTerminal, TriangleAlert } from 'lucide-react';
-import { IconButton } from '../../components/ui';
+import { ArrowDown, ArrowUp, Cpu, MoreHorizontal, Pencil, PinOff, SquareTerminal, TriangleAlert } from 'lucide-react';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  IconButton,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '../../components/ui';
 import { cn } from '../../components/ui/utils';
 import { describeExecutionMode, describeRunState, getRunIcon, getRunTitle, getRunToneClass } from '../run-state';
 import type { ExecutionMode, PinnedScriptViewModel, VsCodeApi } from '../types';
+import { PackageRootBadge } from './PackageRootBadge';
 
 interface PinnedScriptRowProps {
   canMoveDown: boolean;
@@ -41,12 +54,12 @@ export function PinnedScriptRow({ canMoveDown, canMoveUp, isSelected, script, vs
   return (
     <div
       className={cn(
-        'group grid grid-cols-[auto_1fr_auto] items-center gap-2 px-2 py-1 text-[var(--vscode-foreground)] hover:bg-[var(--vscode-list-hoverBackground)]',
-        isSelected ? 'bg-[var(--vscode-list-hoverBackground)] ring-1 ring-inset ring-[var(--vscode-focusBorder)]' : '',
+        'group relative grid grid-cols-[auto_1fr_auto] items-center gap-2 px-2 py-1 text-foreground hover:bg-muted',
+        isSelected ? 'bg-muted ring-1 ring-inset ring-ring' : '',
       )}
       role="button"
       tabIndex={0}
-      title={script.scripts.join(' + ')}
+      aria-label={`${script.label}: ${script.scripts.join(' + ')}`}
       onClick={selectScript}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -54,85 +67,75 @@ export function PinnedScriptRow({ canMoveDown, canMoveUp, isSelected, script, vs
         }
       }}
     >
-      <button
-        aria-label={getRunTitle(script)}
-        className={cn(
-          'inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-sm bg-transparent outline-none hover:bg-[var(--vscode-toolbar-hoverBackground,var(--vscode-list-hoverBackground))] focus-visible:ring-1 focus-visible:ring-[var(--vscode-focusBorder)]',
-          getRunToneClass(script.runStatus.state),
-        )}
-        title={getRunTitle(script)}
-        type="button"
+      <IconButton
+        className={cn('size-7', getRunToneClass(script.runStatus.state))}
+        icon={RunIcon}
+        label={getRunTitle(script)}
         onClick={(event) => {
           event.stopPropagation();
           runScript();
         }}
-      >
-        <RunIcon aria-hidden="true" className="h-4 w-4" strokeWidth={1.9} />
-      </button>
+      />
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-1">
           <span className="truncate font-medium">{script.label}</span>
           {script.missingScripts.length > 0 ? (
-            <TriangleAlert
-              aria-label="Missing script"
-              className="h-3.5 w-3.5 shrink-0 text-[var(--vscode-editorWarning-foreground,var(--vscode-charts-yellow))]"
-              strokeWidth={1.9}
-            />
+            <TriangleAlert aria-label="Missing script" className="size-3.5 shrink-0 text-warning" strokeWidth={1.9} />
           ) : null}
         </div>
-        <div className="truncate text-xs text-[var(--vscode-descriptionForeground)]">
-          {describeRunState(script.runStatus.state)} · {describeExecutionMode(script.executionMode)} ·{' '}
-          {script.scripts.join(' + ')}
+        <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+          <span className="min-w-0 truncate">
+            {describeRunState(script.runStatus.state)} · {describeExecutionMode(script.executionMode)} ·{' '}
+            {script.scripts.join(' + ')}
+          </span>
+          <PackageRootBadge label={script.packagePath} path={script.packagePath} />
         </div>
       </div>
-      <div
-        className={cn(
-          'flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100',
-          isSelected ? 'opacity-100' : '',
-        )}
-      >
-        <IconButton
-          disabled={!canMoveUp}
-          icon={ArrowUp}
-          label="Move up"
-          onClick={(event) => {
-            event.stopPropagation();
-            moveUp();
-          }}
-        />
-        <IconButton
-          disabled={!canMoveDown}
-          icon={ArrowDown}
-          label="Move down"
-          onClick={(event) => {
-            event.stopPropagation();
-            moveDown();
-          }}
-        />
-        <IconButton
-          icon={ModeIcon}
-          label={`Runs in ${script.executionMode}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            changeMode();
-          }}
-        />
-        <IconButton
-          icon={Pencil}
-          label="Edit pinned script"
-          onClick={(event) => {
-            event.stopPropagation();
-            editScript();
-          }}
-        />
-        <IconButton
-          icon={PinOff}
-          label="Remove pinned script"
-          onClick={(event) => {
-            event.stopPropagation();
-            removePinned();
-          }}
-        />
+      <div className="flex items-center gap-0.5">
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <DropdownMenuTrigger
+                  render={
+                    <Button aria-label="Script actions" size="icon-sm" variant="ghost">
+                      <MoreHorizontal aria-hidden="true" className="size-4" strokeWidth={1.8} />
+                    </Button>
+                  }
+                />
+              }
+            />
+            <TooltipContent>Script actions</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="end" side={canMoveDown ? 'bottom' : 'top'}>
+            <DropdownMenuGroup>
+              <DropdownMenuItem onClick={editScript}>
+                <Pencil aria-hidden="true" />
+                Edit pinned script
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={changeMode}>
+                <ModeIcon aria-hidden="true" />
+                Run in {nextMode}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem disabled={!canMoveUp} onClick={moveUp}>
+                <ArrowUp aria-hidden="true" />
+                Move up
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!canMoveDown} onClick={moveDown}>
+                <ArrowDown aria-hidden="true" />
+                Move down
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={removePinned}>
+              <PinOff aria-hidden="true" />
+              Remove pinned script
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

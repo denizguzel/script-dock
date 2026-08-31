@@ -54,12 +54,12 @@ export function OrderedScript({
     <div
       draggable
       className={[
-        'relative mb-1 grid min-h-10 grid-cols-[1.5rem_2rem_1fr_auto] items-center gap-2 border border-transparent px-2 py-1 hover:bg-[var(--vscode-list-hoverBackground)]',
+        'relative mb-1 grid min-h-10 grid-cols-[1.5rem_2rem_1fr_auto] items-center gap-2 border border-transparent px-2 py-1 hover:bg-muted',
         dropPosition === 'before'
-          ? 'before:absolute before:left-2 before:right-2 before:top-0 before:h-px before:bg-[var(--vscode-focusBorder)]'
+          ? 'before:absolute before:left-2 before:right-2 before:top-0 before:h-px before:bg-ring'
           : '',
         dropPosition === 'after'
-          ? 'after:absolute after:bottom-0 after:left-2 after:right-2 after:h-px after:bg-[var(--vscode-focusBorder)]'
+          ? 'after:absolute after:bottom-0 after:left-2 after:right-2 after:h-px after:bg-ring'
           : '',
       ].join(' ')}
       onDragLeave={handleDragLeave}
@@ -67,17 +67,11 @@ export function OrderedScript({
       onDragStart={handleDragStart}
       onDrop={handleDrop}
     >
-      <GripVertical
-        aria-hidden="true"
-        className="h-4 w-4 text-[var(--vscode-descriptionForeground)]"
-        strokeWidth={1.8}
-      />
-      <span className="text-center text-[var(--vscode-descriptionForeground)]">{index + 1}</span>
+      <GripVertical aria-hidden="true" className="size-4 text-muted-foreground" strokeWidth={1.8} />
+      <span className="text-center text-muted-foreground">{index + 1}</span>
       <span className="min-w-0">
         <span className="block overflow-hidden text-ellipsis whitespace-nowrap">{name}</span>
-        <span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[var(--vscode-descriptionForeground)]">
-          {command}
-        </span>
+        <span className="block overflow-hidden text-ellipsis whitespace-nowrap text-muted-foreground">{command}</span>
       </span>
       <span className="flex gap-1">
         <IconButton disabled={isFirst} icon={ArrowUp} label="Move up" onClick={() => onMoveScript(index, index - 1)} />

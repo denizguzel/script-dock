@@ -1,6 +1,15 @@
-import type { ChangeEvent } from 'react';
 import { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, PanelTop } from 'lucide-react';
+import {
+  Button,
+  Checkbox,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui';
 import type { LauncherState, StatusBarAlignment, StatusBarDisplayMode, VsCodeApi } from '../types';
 
 interface StatusBarSettingsProps {
@@ -10,20 +19,20 @@ interface StatusBarSettingsProps {
 
 export function StatusBarSettings({ statusBar, vscode }: StatusBarSettingsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const updateVisibility = (event: ChangeEvent<HTMLInputElement>) => {
-    vscode.postMessage({ type: 'statusBarVisible', visible: event.target.checked });
+  const updateVisibility = (visible: boolean) => {
+    vscode.postMessage({ type: 'statusBarVisible', visible });
   };
 
-  const updateDisplayMode = (event: ChangeEvent<HTMLSelectElement>) => {
+  const updateDisplayMode = (displayMode: string) => {
     vscode.postMessage({
-      displayMode: event.target.value as StatusBarDisplayMode,
+      displayMode: displayMode as StatusBarDisplayMode,
       type: 'statusBarDisplayMode',
     });
   };
 
-  const updateAlignment = (event: ChangeEvent<HTMLSelectElement>) => {
+  const updateAlignment = (alignment: string) => {
     vscode.postMessage({
-      alignment: event.target.value as StatusBarAlignment,
+      alignment: alignment as StatusBarAlignment,
       type: 'statusBarAlignment',
     });
   };
@@ -36,56 +45,76 @@ export function StatusBarSettings({ statusBar, vscode }: StatusBarSettingsProps)
     : 'Hidden';
 
   return (
-    <section className="grid gap-2 border-t border-[var(--vscode-panel-border)] px-2 py-2">
-      <button
-        className="flex min-h-7 cursor-pointer items-center justify-between gap-2 rounded-sm bg-transparent text-left text-[var(--vscode-foreground)] outline-none hover:bg-[var(--vscode-list-hoverBackground)] focus-visible:ring-1 focus-visible:ring-[var(--vscode-focusBorder)]"
+    <section className="grid gap-2 border-t border-border px-2 py-2">
+      <Button
+        aria-controls="status-bar-settings"
+        aria-expanded={isExpanded}
+        className="min-h-7 w-full justify-between px-2 text-left"
+        size="sm"
+        variant="ghost"
         type="button"
         onClick={toggleExpanded}
       >
         <span className="flex min-w-0 items-center gap-1.5">
+          <PanelTop aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.8} />
           <DisclosureIcon aria-hidden="true" className="h-4 w-4 shrink-0" strokeWidth={1.8} />
           <span className="truncate font-medium">Status bar</span>
         </span>
-        <span className="truncate text-xs text-[var(--vscode-descriptionForeground)]">{summary}</span>
-      </button>
+        <span className="truncate text-xs text-muted-foreground">{summary}</span>
+      </Button>
       {isExpanded ? (
-        <>
-          <label className="flex min-h-7 cursor-pointer items-center gap-2 text-[var(--vscode-foreground)]">
-            <input
+        <div className="grid gap-2" id="status-bar-settings">
+          <div className="flex min-h-7 items-center gap-2 text-foreground">
+            <Checkbox
               checked={statusBar.visible}
-              className="m-0 h-4 w-4 accent-[var(--vscode-button-background)]"
-              type="checkbox"
-              onChange={updateVisibility}
+              id="status-bar-visible"
+              onCheckedChange={(checked) => updateVisibility(checked)}
             />
-            <span>Show pinned scripts in status bar</span>
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="grid gap-1 text-[var(--vscode-descriptionForeground)]">
-              <span>Display</span>
-              <select
-                className="h-8 min-w-0 rounded-sm border border-[var(--vscode-dropdown-border,var(--vscode-input-border,transparent))] bg-[var(--vscode-dropdown-background,var(--vscode-input-background))] px-2 text-[var(--vscode-dropdown-foreground,var(--vscode-input-foreground))] outline-none disabled:cursor-not-allowed disabled:opacity-45 focus:border-[var(--vscode-focusBorder)]"
-                disabled={!statusBar.visible}
-                value={statusBar.displayMode}
-                onChange={updateDisplayMode}
-              >
-                <option value="compact">Compact</option>
-                <option value="expanded">Expanded</option>
-              </select>
-            </label>
-            <label className="grid gap-1 text-[var(--vscode-descriptionForeground)]">
-              <span>Side</span>
-              <select
-                className="h-8 min-w-0 rounded-sm border border-[var(--vscode-dropdown-border,var(--vscode-input-border,transparent))] bg-[var(--vscode-dropdown-background,var(--vscode-input-background))] px-2 text-[var(--vscode-dropdown-foreground,var(--vscode-input-foreground))] outline-none disabled:cursor-not-allowed disabled:opacity-45 focus:border-[var(--vscode-focusBorder)]"
-                disabled={!statusBar.visible}
-                value={statusBar.alignment}
-                onChange={updateAlignment}
-              >
-                <option value="left">Left</option>
-                <option value="right">Right</option>
-              </select>
-            </label>
+            <Label htmlFor="status-bar-visible">Show pinned scripts in status bar</Label>
           </div>
-        </>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="grid gap-1 text-muted-foreground">
+              <Label htmlFor="status-bar-display">Display</Label>
+              <Select
+                disabled={!statusBar.visible}
+                items={[
+                  { label: 'Compact', value: 'compact' },
+                  { label: 'Expanded', value: 'expanded' },
+                ]}
+                value={statusBar.displayMode}
+                onValueChange={updateDisplayMode}
+              >
+                <SelectTrigger id="status-bar-display">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="compact">Compact</SelectItem>
+                  <SelectItem value="expanded">Expanded</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1 text-muted-foreground">
+              <Label htmlFor="status-bar-alignment">Side</Label>
+              <Select
+                disabled={!statusBar.visible}
+                items={[
+                  { label: 'Left', value: 'left' },
+                  { label: 'Right', value: 'right' },
+                ]}
+                value={statusBar.alignment}
+                onValueChange={updateAlignment}
+              >
+                <SelectTrigger id="status-bar-alignment">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="left">Left</SelectItem>
+                  <SelectItem value="right">Right</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
       ) : null}
     </section>
   );

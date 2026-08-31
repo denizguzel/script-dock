@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { TooltipProvider } from '../components/ui';
 import './styles.css';
 import type { ChainEditorState, VsCodeApi } from './types';
 
@@ -19,6 +20,8 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <App initialState={window.__SCRIPT_DOCK_CHAIN_EDITOR_STATE__} vscode={window.acquireVsCodeApi()} />
+    <TooltipProvider>
+      <App initialState={window.__SCRIPT_DOCK_CHAIN_EDITOR_STATE__} vscode={window.acquireVsCodeApi()} />
+    </TooltipProvider>
   </StrictMode>,
 );

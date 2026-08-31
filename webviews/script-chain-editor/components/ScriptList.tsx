@@ -1,5 +1,6 @@
-import { Minus, Plus } from 'lucide-react';
-import { Input, PanelSection } from '../../components/ui';
+import { ListChecks, Minus, Plus } from 'lucide-react';
+import { Button, Input, Label, PanelSection } from '../../components/ui';
+import { cn } from '../../components/ui/utils';
 import type { ScriptOption } from '../types';
 
 interface ScriptListProps {
@@ -22,42 +23,44 @@ export function ScriptList({
   const selected = new Set(selectedNames);
 
   return (
-    <PanelSection count={`${filteredScripts.length} / ${scripts.length}`} title="Package Scripts">
+    <PanelSection count={`${filteredScripts.length} / ${scripts.length}`} icon={ListChecks} title="Package Scripts">
       <div className="mb-2">
-        <Input
-          label="Search"
-          placeholder="Filter by script or command"
-          value={searchQuery}
-          onChange={(event) => onSearchQueryChange(event.target.value)}
-        />
+        <label className="grid gap-1.5">
+          <Label htmlFor="script-search">Search</Label>
+          <Input
+            id="script-search"
+            placeholder="Filter by script or command"
+            value={searchQuery}
+            onChange={(event) => onSearchQueryChange(event.target.value)}
+          />
+        </label>
       </div>
       {filteredScripts.length === 0 ? (
-        <div className="p-4 text-[var(--vscode-descriptionForeground)]">No scripts match this filter.</div>
+        <div className="p-4 text-muted-foreground">No scripts match this filter.</div>
       ) : null}
       {filteredScripts.map((script) => {
         const isSelected = selected.has(script.name);
         const Icon = isSelected ? Minus : Plus;
 
         return (
-          <button
+          <Button
             key={script.name}
-            className={[
-              'mb-1 grid min-h-10 w-full cursor-pointer grid-cols-[1.5rem_1fr] items-center gap-2 border border-transparent px-2 py-1 text-left outline-none transition-colors focus-visible:ring-1 focus-visible:ring-[var(--vscode-focusBorder)]',
-              isSelected
-                ? 'bg-[var(--vscode-list-activeSelectionBackground)] text-[var(--vscode-list-activeSelectionForeground)]'
-                : 'bg-transparent text-[var(--vscode-foreground)] hover:bg-[var(--vscode-list-hoverBackground)]',
-            ].join(' ')}
+            className={cn(
+              'mb-1 min-h-10 w-full justify-start gap-2 rounded-none border border-transparent px-2 py-1 text-left',
+              isSelected ? 'border-l-2 border-l-ring bg-muted text-foreground' : '',
+            )}
+            variant="ghost"
             type="button"
             onClick={() => onToggleScript(script.name)}
           >
             <Icon aria-hidden="true" className="h-4 w-4 justify-self-center" strokeWidth={1.8} />
             <span className="min-w-0">
               <span className="block overflow-hidden text-ellipsis whitespace-nowrap">{script.name}</span>
-              <span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[var(--vscode-descriptionForeground)]">
+              <span className="block overflow-hidden text-ellipsis whitespace-nowrap text-muted-foreground">
                 {script.command}
               </span>
             </span>
-          </button>
+          </Button>
         );
       })}
     </PanelSection>

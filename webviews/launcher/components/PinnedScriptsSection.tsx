@@ -1,4 +1,4 @@
-import { Play, Square } from 'lucide-react';
+import { Pin, Play, Square } from 'lucide-react';
 import { IconButton } from '../../components/ui';
 import { Section } from './Section';
 import { PinnedScriptRow } from './PinnedScriptRow';
@@ -37,6 +37,7 @@ export function PinnedScriptsSection({ pinnedScripts, selectedKey, vscode }: Pin
         </>
       }
       count={pinnedScripts.length}
+      icon={Pin}
       title="Pinned Scripts"
     >
       {pinnedScripts.map((script, index) => (

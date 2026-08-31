@@ -1,17 +1,23 @@
 import type { ReactNode } from 'react';
+import { cn } from './utils';
 
 interface WebviewShellProps {
   children: ReactNode;
-  footer: ReactNode;
+  footer?: ReactNode;
   header: ReactNode;
 }
 
 export function WebviewShell({ children, footer, header }: WebviewShellProps) {
   return (
-    <div className="grid min-h-screen grid-rows-[auto_1fr_auto] bg-[var(--vscode-editor-background)] text-[var(--vscode-foreground)]">
-      <header className="border-b border-[var(--vscode-panel-border)] px-5 py-4">{header}</header>
+    <div
+      className={cn(
+        'grid min-h-screen bg-background text-foreground',
+        footer ? 'grid-rows-[auto_1fr_auto]' : 'grid-rows-[auto_1fr]',
+      )}
+    >
+      <header className="border-b border-border px-5 py-4">{header}</header>
       <main className="min-h-0">{children}</main>
-      <footer className="border-t border-[var(--vscode-panel-border)] px-5 py-4">{footer}</footer>
+      {footer ? <footer className="border-t border-border px-5 py-4">{footer}</footer> : null}
     </div>
   );
 }

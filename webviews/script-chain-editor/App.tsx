@@ -1,6 +1,6 @@
 import { Save, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Button, Input, WebviewShell } from '../components/ui';
+import { Button, Input, Label, WebviewShell } from '../components/ui';
 import { ChainPreview } from './components/ChainPreview';
 import { ModeToggle } from './components/ModeToggle';
 import { RunOrder } from './components/RunOrder';
@@ -64,42 +64,45 @@ export function App({ initialState, vscode }: AppProps) {
     <WebviewShell
       header={
         <div className="grid gap-3">
-          <div className="grid grid-cols-[minmax(14rem,1fr)_auto] items-end gap-3">
-            <Input
-              label="Label"
-              placeholder="verify"
-              value={label}
-              onChange={(event) => setLabel(event.target.value)}
-            />
-            <ModeToggle mode={mode} onChange={setMode} />
+          <div className="grid gap-1.5">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div className="grid min-w-0 basis-[29rem] flex-1 grid-cols-[minmax(14rem,1fr)_auto] items-end gap-3">
+                <label className="grid gap-1.5">
+                  <Label htmlFor="script-chain-label">Label</Label>
+                  <Input
+                    id="script-chain-label"
+                    placeholder="verify"
+                    value={label}
+                    onChange={(event) => setLabel(event.target.value)}
+                  />
+                </label>
+                <ModeToggle mode={mode} onChange={setMode} />
+              </div>
+              <div className="ml-auto flex shrink-0 items-center gap-3">
+                <Button
+                  startIcon={<X aria-hidden="true" className="size-4" strokeWidth={1.8} />}
+                  variant="secondary"
+                  onClick={() => vscode.postMessage({ type: 'cancel' })}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={!canSave}
+                  startIcon={<Save aria-hidden="true" className="size-4" strokeWidth={1.8} />}
+                  variant="default"
+                  onClick={save}
+                >
+                  Save
+                </Button>
+              </div>
+            </div>
+            <ValidationHint message={validationMessage} />
           </div>
           <ChainPreview scriptNames={selectedNames} />
         </div>
       }
-      footer={
-        <div className="flex items-center justify-between gap-3">
-          <ValidationHint message={validationMessage} />
-          <div className="flex justify-end gap-2">
-            <Button
-              icon={<X aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />}
-              variant="secondary"
-              onClick={() => vscode.postMessage({ type: 'cancel' })}
-            >
-              Cancel
-            </Button>
-            <Button
-              disabled={!canSave}
-              icon={<Save aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />}
-              variant="primary"
-              onClick={save}
-            >
-              Save
-            </Button>
-          </div>
-        </div>
-      }
     >
-      <div className="grid h-full min-h-0 grid-cols-[minmax(15rem,1fr)_minmax(18rem,1fr)]">
+      <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] md:grid-cols-[minmax(15rem,1fr)_minmax(18rem,1fr)] md:grid-rows-1">
         <ScriptList
           filteredScripts={filteredScripts}
           scripts={initialState.scripts}

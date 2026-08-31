@@ -5,9 +5,5 @@ interface PanelFrameProps {
 }
 
 export function PanelFrame({ children }: PanelFrameProps) {
-  return (
-    <main className="flex min-h-screen flex-col bg-[var(--vscode-sideBar-background,var(--vscode-editor-background))] text-[var(--vscode-foreground)]">
-      {children}
-    </main>
-  );
+  return <main className="flex min-h-screen flex-col bg-background text-foreground">{children}</main>;
 }

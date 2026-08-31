@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { EmptyPanel } from './components/EmptyPanel';
 import { FilterTabs } from './components/FilterTabs';
+import { LoadingPanel } from './components/LoadingPanel';
 import { OnboardingPanel } from './components/OnboardingPanel';
 import { PanelFrame } from './components/PanelFrame';
 import { PinnedScriptsSection } from './components/PinnedScriptsSection';
@@ -19,7 +20,6 @@ interface AppProps {
 export function App({ initialState, vscode }: AppProps) {
   const [filter, setFilter] = useState<ScriptFilter>(initialState.selectedFilter);
   const [search, setSearch] = useState('');
-  const [selectedScript, setSelectedScript] = useState<ScriptViewModel | undefined>();
   const [state, setState] = useState(initialState);
   const selectedPinnedScript = useMemo(() => getSelectedPinnedScript(state), [state]);
   const pinnedScripts = useMemo(() => filterPinnedScripts(state.pinnedScripts, search), [state.pinnedScripts, search]);
@@ -59,20 +59,6 @@ export function App({ initialState, vscode }: AppProps) {
     return () => window.removeEventListener('message', handleMessage);
   }, [vscode]);
 
-  useEffect(() => {
-    if (!selectedScript) {
-      return;
-    }
-
-    const nextSelectedScript = [...state.allScripts, ...state.hiddenScripts].find(
-      (script) => script.id === selectedScript.id,
-    );
-
-    if (nextSelectedScript !== selectedScript) {
-      setSelectedScript(nextSelectedScript);
-    }
-  }, [selectedScript, state.allScripts, state.hiddenScripts]);
-
   const setPersistedFilter = (nextFilter: ScriptFilter) => {
     setFilter(nextFilter);
     vscode.postMessage({ filter: nextFilter, type: 'setFilter' });
@@ -90,9 +76,7 @@ export function App({ initialState, vscode }: AppProps) {
       <SearchBox value={search} onChange={setSearch} />
       <FilterTabs counts={filterCounts} value={filter} onChange={setPersistedFilter} />
       <div className="min-h-0 flex-1 overflow-auto">
-        {state.isLoading ? (
-          <div className="px-3 py-5 text-[var(--vscode-descriptionForeground)]">Loading scripts...</div>
-        ) : null}
+        {state.isLoading ? <LoadingPanel /> : null}
         {!state.isLoading ? <EmptyPanel empty={state.empty} vscode={vscode} /> : null}
         {!state.isLoading && state.empty.kind === 'none' ? (
           <>
@@ -112,9 +96,7 @@ export function App({ initialState, vscode }: AppProps) {
               pinnedScripts={pinnedScripts}
               runnableScripts={runnableScripts}
               selectedPinnedKey={state.selectedPinnedKey}
-              selectedScriptId={selectedScript?.id ?? null}
               vscode={vscode}
-              onSelectScript={setSelectedScript}
             />
           </>
         ) : null}
@@ -130,9 +112,7 @@ function ScriptSections(props: {
   pinnedScripts: LauncherState['pinnedScripts'];
   runnableScripts: ScriptViewModel[];
   selectedPinnedKey: string | null;
-  selectedScriptId: string | null;
   vscode: VsCodeApi;
-  onSelectScript: (script: ScriptViewModel) => void;
 }) {
   if (props.filter === 'pinned') {
     if (props.pinnedScripts.length === 0) {
@@ -153,15 +133,7 @@ function ScriptSections(props: {
       return <EmptyListMessage message="No runnable scripts match this view." />;
     }
 
-    return (
-      <ScriptListSection
-        onSelectScript={props.onSelectScript}
-        scripts={props.runnableScripts}
-        selectedScriptId={props.selectedScriptId}
-        title="Runnable Scripts"
-        vscode={props.vscode}
-      />
-    );
+    return <ScriptListSection scripts={props.runnableScripts} title="Runnable Scripts" vscode={props.vscode} />;
   }
 
   if (props.filter === 'hidden') {
@@ -169,15 +141,7 @@ function ScriptSections(props: {
       return <EmptyListMessage message="No hidden scripts." />;
     }
 
-    return (
-      <ScriptListSection
-        onSelectScript={props.onSelectScript}
-        scripts={props.hiddenScripts}
-        selectedScriptId={props.selectedScriptId}
-        title="Hidden Scripts"
-        vscode={props.vscode}
-      />
-    );
+    return <ScriptListSection scripts={props.hiddenScripts} title="Hidden Scripts" vscode={props.vscode} />;
   }
 
   return (
@@ -187,19 +151,13 @@ function ScriptSections(props: {
         selectedKey={props.selectedPinnedKey}
         vscode={props.vscode}
       />
-      <ScriptListSection
-        onSelectScript={props.onSelectScript}
-        scripts={props.allScripts}
-        selectedScriptId={props.selectedScriptId}
-        title="All Scripts"
-        vscode={props.vscode}
-      />
+      <ScriptListSection scripts={props.allScripts} title="All Scripts" vscode={props.vscode} />
     </>
   );
 }
 
 function EmptyListMessage({ message }: { message: string }) {
-  return <div className="px-3 py-5 text-[var(--vscode-descriptionForeground)]">{message}</div>;
+  return <div className="px-3 py-5 text-muted-foreground">{message}</div>;
 }
 
 function filterScripts(scripts: ScriptViewModel[], search: string): ScriptViewModel[] {

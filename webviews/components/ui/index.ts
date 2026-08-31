@@ -1,6 +1,18 @@
-export { Button } from './Button';
-export { IconButton } from './IconButton';
-export { Input } from './Input';
+export { Button } from './button';
+export { Checkbox } from './checkbox';
+export {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './dropdown-menu';
+export { IconButton } from './icon-button';
+export { Input } from './input';
+export { Label } from './label';
 export { PanelSection } from './PanelSection';
-export { ToggleGroup } from './ToggleGroup';
+export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
+export { ToggleGroup } from './toggle-group';
+export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tooltip';
 export { WebviewShell } from './WebviewShell';

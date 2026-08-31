@@ -21,13 +21,13 @@ export function EmptyPanel({ empty, vscode }: EmptyPanelProps) {
   const Icon = empty.kind === 'noWorkspace' ? FolderOpen : PackageSearch;
 
   return (
-    <section className="grid gap-3 px-3 py-5 text-[var(--vscode-descriptionForeground)]">
+    <section className="grid gap-3 px-3 py-5 text-muted-foreground">
       <Icon aria-hidden="true" className="h-5 w-5" strokeWidth={1.8} />
       <p className="m-0">{empty.message}</p>
       <div className="flex flex-wrap gap-2">
         {empty.kind === 'allHidden' ? (
           <Button
-            icon={<Eye aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />}
+            startIcon={<Eye aria-hidden="true" className="size-4" strokeWidth={1.8} />}
             variant="secondary"
             onClick={showHiddenScript}
           >
@@ -36,7 +36,7 @@ export function EmptyPanel({ empty, vscode }: EmptyPanelProps) {
         ) : null}
         {empty.kind !== 'noWorkspace' ? (
           <Button
-            icon={<RefreshCw aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />}
+            startIcon={<RefreshCw aria-hidden="true" className="size-4" strokeWidth={1.8} />}
             variant="secondary"
             onClick={refreshScripts}
           >

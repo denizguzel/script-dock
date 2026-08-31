@@ -1,3 +1,4 @@
+import { ListOrdered } from 'lucide-react';
 import { PanelSection } from '../../components/ui';
 import type { ScriptOption } from '../types';
 import { OrderedScript } from './OrderedScript';
@@ -12,13 +13,9 @@ interface RunOrderProps {
 
 export function RunOrder({ scriptByName, selectedNames, onDropScript, onMoveScript, onRemoveScript }: RunOrderProps) {
   return (
-    <PanelSection
-      className="border-l border-[var(--vscode-panel-border)]"
-      count={selectedNames.length}
-      title="Run Order"
-    >
+    <PanelSection className="border-l border-border" count={selectedNames.length} icon={ListOrdered} title="Run Order">
       {selectedNames.length === 0 ? (
-        <div className="p-4 text-[var(--vscode-descriptionForeground)]">Select scripts from the left.</div>
+        <div className="p-4 text-muted-foreground">Select scripts from the left.</div>
       ) : (
         selectedNames.map((scriptName, index) => {
           const script = scriptByName.get(scriptName);

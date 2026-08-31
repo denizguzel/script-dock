@@ -8,6 +8,9 @@
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "paths": {
+      "@/*": ["./*"]
+    },
     "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,

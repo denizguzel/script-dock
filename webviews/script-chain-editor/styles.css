@@ -1,7 +1,58 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
 
 @layer base {
   :root {
+    --radius: 0.5rem;
+    --background: var(--vscode-editor-background);
+    --foreground: var(--vscode-foreground);
+    --card: var(--vscode-editor-background);
+    --card-foreground: var(--vscode-foreground);
+    --popover: var(--vscode-menu-background, var(--vscode-editorWidget-background, var(--vscode-editor-background)));
+    --popover-foreground: var(--vscode-menu-foreground, var(--vscode-foreground));
+    --primary: var(--vscode-button-background);
+    --primary-foreground: var(--vscode-button-foreground);
+    --secondary: var(--vscode-button-secondaryBackground);
+    --secondary-foreground: var(--vscode-button-secondaryForeground);
+    --muted: var(--vscode-list-hoverBackground);
+    --muted-foreground: var(--vscode-descriptionForeground);
+    --accent: var(--vscode-list-hoverBackground);
+    --accent-foreground: var(--vscode-foreground);
+    --destructive: var(--vscode-errorForeground, var(--vscode-editorWarning-foreground));
+    --destructive-foreground: var(--vscode-button-foreground);
+    --success: var(--vscode-testing-iconPassed);
+    --warning: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow));
+    --border: var(--vscode-panel-border, #3c3c3c);
+    --input: color-mix(in oklab, var(--foreground) 28%, var(--background));
+    --ring: var(--vscode-textLink-foreground, #3794ff);
     color-scheme: light dark;
   }
 
