@@ -17,9 +17,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '../../components/ui';
-import { cn } from '../../components/ui/utils';
+import { cn } from 'cn';
 import { getRunIcon, getRunTitle, getRunToneClass } from '../run-state';
-import type { PinnedScriptViewModel, VsCodeApi } from '../types';
+import type { PinnedScriptViewModel } from '../../../src/types';
+import type { VsCodeApi } from '../types';
 
 interface TopRunnerProps {
   hiddenScriptCount: number;

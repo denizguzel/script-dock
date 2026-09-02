@@ -1,7 +1,7 @@
 import { Select as SelectPrimitive } from '@base-ui/react/select';
 import { Check, ChevronDown } from 'lucide-react';
 
-import { cn } from './utils';
+import { cn } from 'cn';
 
 interface SelectProps extends Omit<SelectPrimitive.Root.Props<string>, 'onValueChange'> {
   onValueChange?: (value: string) => void;

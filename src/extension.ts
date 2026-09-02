@@ -105,19 +105,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration(configurationSection)) {
         void scriptDockViewProvider.reload();
-        void vscode.commands.executeCommand(
-          'setContext',
-          'scriptDock.statusBarAlignment',
-          getStatusBarAlignmentPreference(),
-        );
-        void vscode.commands.executeCommand('setContext', 'scriptDock.statusBarDisplayMode', getStatusBarDisplayMode());
-        void vscode.commands.executeCommand(
-          'setContext',
-          'scriptDock.showStatusBarScripts',
-          shouldShowStatusBarScripts(),
-        );
-        void statusBarController.refresh();
-        scriptDockViewProvider.refresh();
+        refreshStatusBarContexts(statusBarController, scriptDockViewProvider);
       }
     }),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
@@ -125,19 +113,7 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     onDidChangeWorkspacePreferences(() => {
       scriptDockViewProvider.refreshFromPreferences();
-      void vscode.commands.executeCommand(
-        'setContext',
-        'scriptDock.statusBarAlignment',
-        getStatusBarAlignmentPreference(),
-      );
-      void vscode.commands.executeCommand('setContext', 'scriptDock.statusBarDisplayMode', getStatusBarDisplayMode());
-      void vscode.commands.executeCommand(
-        'setContext',
-        'scriptDock.showStatusBarScripts',
-        shouldShowStatusBarScripts(),
-      );
-      void statusBarController.refresh();
-      scriptDockViewProvider.refresh();
+      refreshStatusBarContexts(statusBarController, scriptDockViewProvider);
     }),
   );
 
@@ -150,3 +126,14 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {}
+
+function refreshStatusBarContexts(
+  statusBarController: StatusBarController,
+  scriptDockViewProvider: ScriptDockViewProvider,
+) {
+  void vscode.commands.executeCommand('setContext', 'scriptDock.statusBarAlignment', getStatusBarAlignmentPreference());
+  void vscode.commands.executeCommand('setContext', 'scriptDock.statusBarDisplayMode', getStatusBarDisplayMode());
+  void vscode.commands.executeCommand('setContext', 'scriptDock.showStatusBarScripts', shouldShowStatusBarScripts());
+  void statusBarController.refresh();
+  scriptDockViewProvider.refresh();
+}

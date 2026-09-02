@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode, SVGProps } from 'react';
-import { cn } from './utils';
+import { cn } from 'cn';
 
 interface PanelSectionProps {
   children: ReactNode;

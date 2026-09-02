@@ -1,0 +1,8 @@
+{
+  "format": ["css", "scss"],
+  "minLines": 4,
+  "minTokens": 25,
+  "threshold": 0,
+  "reporters": ["console"],
+  "exitCode": 1
+}

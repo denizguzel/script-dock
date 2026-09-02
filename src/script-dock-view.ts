@@ -23,58 +23,17 @@ import { getPackageRoots, getScriptsForPackageRoots } from './scripts';
 import { createStatusBarCommandKey, getStatusBarCommandScripts, getStatusBarExecutionMode } from './status-bar-command';
 import type {
   PackageRoot,
+  PinnedScriptViewModel,
   ScriptFilter,
+  ScriptDockState,
   ScriptEntry,
+  ScriptViewModel,
   StatusBarAlignmentPreference,
   StatusBarCommand,
   StatusBarCommandExecutionMode,
   StatusBarDisplayMode,
 } from './types';
 import { createWebviewHtml } from './webview-html';
-
-interface ScriptViewModel {
-  autoClose: boolean;
-  command: string;
-  executionMode: StatusBarCommandExecutionMode | null;
-  id: string;
-  isHidden: boolean;
-  isPinned: boolean;
-  name: string;
-  packageLabel: string;
-  packagePath: string;
-  runStatus: ReturnType<typeof getStatusBarCommandRunStatus>;
-}
-
-interface PinnedScriptViewModel {
-  executionMode: StatusBarCommandExecutionMode;
-  key: string;
-  label: string;
-  missingScripts: string[];
-  packagePath: string;
-  runStatus: ReturnType<typeof getStatusBarCommandRunStatus>;
-  scripts: string[];
-}
-
-interface ScriptDockState {
-  allScripts: ScriptViewModel[];
-  empty: {
-    kind: 'allHidden' | 'none' | 'noPackageJson' | 'noScripts' | 'noWorkspace';
-    message: string;
-  };
-  hiddenScripts: ScriptViewModel[];
-  hiddenScriptCount: number;
-  isLoading: boolean;
-  packageRootCount: number;
-  pinnedScripts: PinnedScriptViewModel[];
-  selectedFilter: ScriptFilter;
-  selectedPinnedKey: string | null;
-  statusBar: {
-    alignment: StatusBarAlignmentPreference;
-    displayMode: StatusBarDisplayMode;
-    visible: boolean;
-  };
-  workspaceName: string | null;
-}
 
 type ScriptDockMessage =
   | { type: 'addSuggestedChains' }

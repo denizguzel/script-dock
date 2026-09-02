@@ -10,10 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui';
-import type { LauncherState, StatusBarAlignment, StatusBarDisplayMode, VsCodeApi } from '../types';
+import type { ScriptDockState, StatusBarAlignmentPreference, StatusBarDisplayMode } from '../../../src/types';
+import type { VsCodeApi } from '../types';
 
 interface StatusBarSettingsProps {
-  statusBar: LauncherState['statusBar'];
+  statusBar: ScriptDockState['statusBar'];
   vscode: VsCodeApi;
 }
 
@@ -32,7 +33,7 @@ export function StatusBarSettings({ statusBar, vscode }: StatusBarSettingsProps)
 
   const updateAlignment = (alignment: string) => {
     vscode.postMessage({
-      alignment: alignment as StatusBarAlignment,
+      alignment: alignment as StatusBarAlignmentPreference,
       type: 'statusBarAlignment',
     });
   };

@@ -1,9 +1,10 @@
 import { Eye, FolderOpen, PackageSearch, RefreshCw } from 'lucide-react';
 import { Button } from '../../components/ui';
-import type { LauncherState, VsCodeApi } from '../types';
+import type { ScriptDockState } from '../../../src/types';
+import type { VsCodeApi } from '../types';
 
 interface EmptyPanelProps {
-  empty: LauncherState['empty'];
+  empty: ScriptDockState['empty'];
   vscode: VsCodeApi;
 }
 

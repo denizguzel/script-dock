@@ -3,7 +3,7 @@ import { ToggleGroup as ToggleGroupPrimitive } from '@base-ui/react/toggle-group
 import { cva } from 'class-variance-authority';
 import type { ReactNode } from 'react';
 
-import { cn } from './utils';
+import { cn } from 'cn';
 
 interface ToggleGroupProps<Value extends string> {
   ariaLabel: string;

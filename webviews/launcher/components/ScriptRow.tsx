@@ -12,9 +12,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '../../components/ui';
-import { cn } from '../../components/ui/utils';
+import { cn } from 'cn';
 import { getRunIcon, getRunTitle, getRunToneClass } from '../run-state';
-import type { ExecutionMode, ScriptViewModel, VsCodeApi } from '../types';
+import type { ScriptViewModel, StatusBarCommandExecutionMode } from '../../../src/types';
+import type { VsCodeApi } from '../types';
 import { PackageRootBadge } from './PackageRootBadge';
 
 interface ScriptRowProps {
@@ -23,7 +24,7 @@ interface ScriptRowProps {
 }
 
 export function ScriptRow({ script, vscode }: ScriptRowProps) {
-  const nextMode: ExecutionMode = script.executionMode === 'background' ? 'terminal' : 'background';
+  const nextMode: StatusBarCommandExecutionMode = script.executionMode === 'background' ? 'terminal' : 'background';
   const ModeIcon = script.executionMode === 'background' ? Cpu : SquareTerminal;
   const RunIcon = getRunIcon(script.runStatus.state);
   const runScript = () => {

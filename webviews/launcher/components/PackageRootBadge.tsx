@@ -1,6 +1,6 @@
 import { Package } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui';
-import { cn } from '../../components/ui/utils';
+import { cn } from 'cn';
 
 interface PackageRootBadgeProps {
   label: string;

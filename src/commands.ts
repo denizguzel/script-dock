@@ -150,15 +150,7 @@ export async function pickAndRunStatusBarCommand() {
     return;
   }
 
-  const selected = await vscode.window.showQuickPick(
-    commands.map((command) => ({
-      description: getStatusBarCommandScripts(command).join(' + '),
-      detail: formatPackagePath(getCommandPackagePath(command)),
-      label: command.label,
-      command,
-    })),
-    { placeHolder: 'Run a pinned Script Dock script' },
-  );
+  const selected = await pickStatusBarCommandItem(commands, 'Run a pinned Script Dock script');
 
   if (selected) {
     await runStatusBarCommand(selected.command);
@@ -817,17 +809,24 @@ async function pickStatusBarCommand(): Promise<StatusBarCommand | undefined> {
     return undefined;
   }
 
-  const selected = await vscode.window.showQuickPick(
+  const selected = await pickStatusBarCommandItem(commands, 'Select a pinned script');
+
+  return selected?.command;
+}
+
+async function pickStatusBarCommandItem(
+  commands: readonly StatusBarCommand[],
+  placeHolder: string,
+): Promise<{ command: StatusBarCommand } | undefined> {
+  return vscode.window.showQuickPick(
     commands.map((command) => ({
       description: getStatusBarCommandScripts(command).join(' + '),
       detail: formatPackagePath(getCommandPackagePath(command)),
       label: command.label,
       command,
     })),
-    { placeHolder: 'Select a pinned script' },
+    { placeHolder },
   );
-
-  return selected?.command;
 }
 
 function isStatusBarCommand(value: unknown): value is StatusBarCommand {

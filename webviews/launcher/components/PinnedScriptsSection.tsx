@@ -2,7 +2,8 @@ import { Pin, Play, Square } from 'lucide-react';
 import { IconButton } from '../../components/ui';
 import { Section } from './Section';
 import { PinnedScriptRow } from './PinnedScriptRow';
-import type { PinnedScriptViewModel, VsCodeApi } from '../types';
+import type { PinnedScriptViewModel } from '../../../src/types';
+import type { VsCodeApi } from '../types';
 
 interface PinnedScriptsSectionProps {
   pinnedScripts: PinnedScriptViewModel[];

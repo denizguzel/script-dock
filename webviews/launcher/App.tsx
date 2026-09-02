@@ -10,10 +10,11 @@ import { SearchBox } from './components/SearchBox';
 import { StatusBarSettings } from './components/StatusBarSettings';
 import { TopRunner } from './components/TopRunner';
 import { getSelectedPinnedScript, isStateMessage } from './launcher-state';
-import type { LauncherState, ScriptFilter, ScriptViewModel, VsCodeApi } from './types';
+import type { ScriptDockState, ScriptFilter, ScriptViewModel } from '../../src/types';
+import type { VsCodeApi } from './types';
 
 interface AppProps {
-  initialState: LauncherState;
+  initialState: ScriptDockState;
   vscode: VsCodeApi;
 }
 
@@ -109,7 +110,7 @@ function ScriptSections(props: {
   allScripts: ScriptViewModel[];
   filter: ScriptFilter;
   hiddenScripts: ScriptViewModel[];
-  pinnedScripts: LauncherState['pinnedScripts'];
+  pinnedScripts: ScriptDockState['pinnedScripts'];
   runnableScripts: ScriptViewModel[];
   selectedPinnedKey: string | null;
   vscode: VsCodeApi;
@@ -174,7 +175,10 @@ function filterScripts(scripts: ScriptViewModel[], search: string): ScriptViewMo
   );
 }
 
-function filterPinnedScripts(scripts: LauncherState['pinnedScripts'], search: string): LauncherState['pinnedScripts'] {
+function filterPinnedScripts(
+  scripts: ScriptDockState['pinnedScripts'],
+  search: string,
+): ScriptDockState['pinnedScripts'] {
   const query = search.trim().toLowerCase();
 
   if (query.length === 0) {

@@ -1,5 +1,5 @@
 import { Button } from '../../components/ui';
-import type { ScriptFilter } from '../types';
+import type { ScriptFilter } from '../../../src/types';
 
 interface FilterTabsProps {
   counts: Record<ScriptFilter, number>;

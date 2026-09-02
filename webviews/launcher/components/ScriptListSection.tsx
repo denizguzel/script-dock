@@ -1,7 +1,8 @@
 import { ListChecks } from 'lucide-react';
 import { ScriptRow } from './ScriptRow';
 import { Section } from './Section';
-import type { ScriptViewModel, VsCodeApi } from '../types';
+import type { ScriptViewModel } from '../../../src/types';
+import type { VsCodeApi } from '../types';
 
 interface ScriptListSectionProps {
   scripts: ScriptViewModel[];

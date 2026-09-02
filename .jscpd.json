@@ -1,0 +1,8 @@
+{
+  "format": ["typescript", "tsx"],
+  "minLines": 5,
+  "minTokens": 50,
+  "threshold": 0,
+  "reporters": ["console"],
+  "exitCode": 1
+}

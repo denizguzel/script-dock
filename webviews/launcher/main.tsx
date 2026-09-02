@@ -3,11 +3,12 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { TooltipProvider } from '../components/ui';
 import '../script-chain-editor/styles.css';
-import type { LauncherState, VsCodeApi } from './types';
+import type { ScriptDockState } from '../../src/types';
+import type { VsCodeApi } from './types';
 
 declare global {
   interface Window {
-    __SCRIPT_DOCK_LAUNCHER_STATE__: LauncherState;
+    __SCRIPT_DOCK_LAUNCHER_STATE__: ScriptDockState;
     acquireVsCodeApi(): VsCodeApi;
   }
 }

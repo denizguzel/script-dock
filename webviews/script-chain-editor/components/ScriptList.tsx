@@ -1,6 +1,6 @@
 import { ListChecks, Minus, Plus } from 'lucide-react';
 import { Button, Input, Label, PanelSection } from '../../components/ui';
-import { cn } from '../../components/ui/utils';
+import { cn } from 'cn';
 import type { ScriptOption } from '../types';
 
 interface ScriptListProps {

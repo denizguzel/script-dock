@@ -1,8 +1,8 @@
 import { Check, Play, Square, TriangleAlert } from 'lucide-react';
 import type { ComponentType, SVGProps } from 'react';
-import type { ExecutionMode, PinnedScriptViewModel, RunState } from './types';
+import type { PinnedScriptViewModel, StatusBarCommandExecutionMode, StatusBarCommandRunState } from '../../src/types';
 
-export function getRunIcon(runState: RunState | undefined): ComponentType<SVGProps<SVGSVGElement>> {
+export function getRunIcon(runState: StatusBarCommandRunState | undefined): ComponentType<SVGProps<SVGSVGElement>> {
   if (runState === 'running') {
     return Square;
   }
@@ -34,11 +34,11 @@ export function getRunTitle(command: PinnedScriptViewModel | undefined, target =
   return `Run ${target}`;
 }
 
-export function describeExecutionMode(mode: ExecutionMode): string {
+export function describeExecutionMode(mode: StatusBarCommandExecutionMode): string {
   return mode === 'background' ? 'Background' : 'Terminal';
 }
 
-export function describeRunState(runState: RunState): string {
+export function describeRunState(runState: StatusBarCommandRunState): string {
   if (runState === 'success') {
     return 'Ok';
   }
@@ -58,7 +58,7 @@ export function describeRunState(runState: RunState): string {
   return 'Ready';
 }
 
-export function getRunToneClass(runState: RunState | undefined): string {
+export function getRunToneClass(runState: StatusBarCommandRunState | undefined): string {
   if (runState === 'running') {
     return 'text-[var(--vscode-testing-iconFailed)]';
   }

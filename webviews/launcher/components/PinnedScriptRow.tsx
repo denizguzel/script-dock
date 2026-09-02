@@ -12,9 +12,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '../../components/ui';
-import { cn } from '../../components/ui/utils';
+import { cn } from 'cn';
 import { describeExecutionMode, describeRunState, getRunIcon, getRunTitle, getRunToneClass } from '../run-state';
-import type { ExecutionMode, PinnedScriptViewModel, VsCodeApi } from '../types';
+import type { PinnedScriptViewModel, StatusBarCommandExecutionMode } from '../../../src/types';
+import type { VsCodeApi } from '../types';
 import { PackageRootBadge } from './PackageRootBadge';
 
 interface PinnedScriptRowProps {
@@ -27,7 +28,7 @@ interface PinnedScriptRowProps {
 
 export function PinnedScriptRow({ canMoveDown, canMoveUp, isSelected, script, vscode }: PinnedScriptRowProps) {
   const RunIcon = getRunIcon(script.runStatus.state);
-  const nextMode: ExecutionMode = script.executionMode === 'background' ? 'terminal' : 'background';
+  const nextMode: StatusBarCommandExecutionMode = script.executionMode === 'background' ? 'terminal' : 'background';
   const ModeIcon = script.executionMode === 'background' ? Cpu : SquareTerminal;
   const runScript = () => {
     vscode.postMessage({ key: script.key, type: 'runPinned' });
