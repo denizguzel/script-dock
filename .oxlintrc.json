@@ -6,6 +6,7 @@
   "ignorePatterns": ["dist/**", "node_modules/**"],
   "plugins": ["typescript", "unicorn", "oxc"],
   "rules": {
+    "no-nested-ternary": "error",
     "no-console": "warn"
   }
 }
