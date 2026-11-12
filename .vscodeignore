@@ -14,4 +14,10 @@ webviews/**
 bun.lock
 knip.json
 tsconfig.json
-vite.webviews.config.ts
+vite.webviews.config.mts
+.claude/**
+.jscpd.json
+.jscpd.styles.json
+components.json
+resources/script-dock-icon.svg
+docs/**
