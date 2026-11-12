@@ -26,3 +26,8 @@ bun run build
 ```bash
 bun run package:vsix
 ```
+
+## Releases
+
+- To write the changelog or prepare a release, use the `release-changelog` skill in `.agents/skills/`.
+- Use Conventional Commits (`feat:`, `fix:`, `chore:`) so the history is readable later.
