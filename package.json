@@ -6,6 +6,22 @@
   "categories": [
     "Other"
   ],
+  "keywords": [
+    "bun",
+    "monorepo",
+    "npm scripts",
+    "package.json",
+    "pnpm",
+    "script runner",
+    "scripts",
+    "side panel",
+    "status bar",
+    "yarn"
+  ],
+  "homepage": "https://github.com/denizguzel/script-dock#readme",
+  "bugs": {
+    "url": "https://github.com/denizguzel/script-dock/issues"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -167,7 +183,7 @@
         {
           "id": "scriptDock",
           "title": "Script Dock",
-          "icon": "resources/script-dock-icon.svg"
+          "icon": "resources/script-dock-activitybar.svg"
         }
       ]
     },
@@ -310,6 +326,10 @@
     "onStartupFinished"
   ],
   "icon": "resources/script-dock-icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.141.2"
   },
