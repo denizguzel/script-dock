@@ -1,7 +1,7 @@
 {
   "name": "script-dock",
   "displayName": "Script Dock",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Run workspace package scripts from a compact VS Code side panel.",
   "categories": [
     "Other"
@@ -40,7 +40,7 @@
     "@types/node": "26.6.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "@types/vscode": "1.146.0",
+    "@types/vscode": "1.140.0",
     "@vitejs/plugin-react": "6.3.0",
     "@vscode/vsce": "4.1.0",
     "jscpd": "5.4.3",
@@ -311,7 +311,7 @@
   ],
   "icon": "resources/script-dock-icon.png",
   "engines": {
-    "vscode": "^1.146.0"
+    "vscode": "^1.141.2"
   },
   "packageManager": "bun@1.4.4",
   "trustedDependencies": [
