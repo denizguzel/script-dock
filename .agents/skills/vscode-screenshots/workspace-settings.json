@@ -1,0 +1,14 @@
+{
+  "scriptDock.statusBarDisplayMode": "expanded",
+  "scriptDock.statusBarCommands": [
+    { "label": "dev", "script": "dev", "packagePath": ".", "icon": "play", "executionMode": "terminal" },
+    {
+      "label": "verify",
+      "scripts": ["format", "lint", "typecheck", "test"],
+      "packagePath": ".",
+      "icon": "check-all",
+      "executionMode": "background"
+    },
+    { "label": "build", "script": "build", "packagePath": ".", "icon": "package", "executionMode": "background" }
+  ]
+}
